@@ -42,7 +42,7 @@ export default function RootPage() {
               className="group flex items-center justify-center px-7 py-3 bg-zinc-900 hover:bg-black text-white text-sm font-bold rounded-xl shadow-lg shadow-zinc-900/20 transition-all active:scale-95 border border-zinc-800"
             >
               <ShieldCheck className="w-4 h-4 mr-2 text-bakery-gold" />
-              Staff Secure Portal
+              Login
             </Link>
           </div>
         </div>
@@ -151,7 +151,7 @@ export default function RootPage() {
             
             <div className="flex items-center space-x-6">
               <Link href="/login" className="text-stone-400 hover:text-bakery-gold text-sm font-bold flex items-center transition-colors uppercase tracking-wider">
-                Corporate Login <ChevronRight className="w-4 h-4 ml-1" />
+                Staff Portal <ChevronRight className="w-4 h-4 ml-1" />
               </Link>
             </div>
           </div>
