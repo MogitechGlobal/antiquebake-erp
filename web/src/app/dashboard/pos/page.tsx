@@ -59,6 +59,9 @@ interface ParkedOrder {
 export default function POSDashboardPage() {
   const { user, token } = useAuthStore();
   
+  // Dynamic URL evaluation matching local fallback or production environment variable
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+
   // Data State
   const [stock, setStock] = useState<StockItem[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -87,7 +90,7 @@ export default function POSDashboardPage() {
     if (!user?.branchId || !token) return;
     try {
       if (!silent) setIsLoading(true);
-      const res = await axios.get(`http://localhost:3001/api/v1/inventory/stock/${user.branchId}`, axiosConfig);
+      const res = await axios.get(`${API_URL}/api/v1/inventory/stock/${user.branchId}`, axiosConfig);
       const availableStock = res.data.filter((s: StockItem) => s.quantity > 0);
       setStock(availableStock);
     } catch (err) {
@@ -95,7 +98,7 @@ export default function POSDashboardPage() {
     } finally {
       if (!silent) setIsLoading(false);
     }
-  }, [user?.branchId, token]);
+  }, [user?.branchId, token, API_URL]);
 
   useEffect(() => {
     fetchStockData();
@@ -192,7 +195,7 @@ export default function POSDashboardPage() {
         }))
       };
 
-      const res = await axios.post("http://localhost:3001/api/v1/pos/checkout", payload, axiosConfig);
+      const res = await axios.post(`${API_URL}/api/v1/pos/checkout`, payload, axiosConfig);
       
       const printItems = cart.map(c => ({
          itemId: c.itemId,
