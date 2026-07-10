@@ -33,6 +33,9 @@ interface FinancialReport {
 export default function FinancialReportsPage() {
   const { user, token } = useAuthStore();
   
+  // Dynamic URL evaluation matching local fallback or production environment variable
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+  
   const [report, setReport] = useState<FinancialReport | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -42,14 +45,14 @@ export default function FinancialReportsPage() {
     if (!user?.branchId || !token) return;
     try {
       setIsLoading(true);
-      const res = await axios.get(`http://localhost:3001/api/v1/accounting/reports/${user.branchId}`, axiosConfig);
+      const res = await axios.get(`${API_URL}/api/v1/accounting/reports/${user.branchId}`, axiosConfig);
       setReport(res.data);
     } catch (err) {
       console.error("Failed to load financial report", err);
     } finally {
       setIsLoading(false);
     }
-  }, [user?.branchId, token]);
+  }, [user?.branchId, token, API_URL]);
 
   useEffect(() => {
     fetchReportData();

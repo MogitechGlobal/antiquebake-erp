@@ -44,6 +44,9 @@ interface StaffMember {
 export default function HRDashboardPage() {
   const { user, token } = useAuthStore();
   
+  // Dynamic URL evaluation matching local fallback or production environment variable
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+  
   // Data State
   const [staffList, setStaffList] = useState<StaffMember[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -81,15 +84,15 @@ export default function HRDashboardPage() {
       setIsLoading(true);
       
       // 1. Get Organization ID
-      const branchRes = await axios.get(`http://localhost:3001/api/v1/branches/${user.branchId}`, axiosConfig);
+      const branchRes = await axios.get(`${API_URL}/api/v1/branches/${user.branchId}`, axiosConfig);
       const currentOrgId = branchRes.data.organizationId;
       setOrganizationId(currentOrgId);
 
       // 2. Fetch Staff, Branches, and Roles concurrently
       const [staffRes, branchesRes, rolesRes] = await Promise.all([
-        axios.get(`http://localhost:3001/api/v1/staff/organization/${currentOrgId}`, axiosConfig),
-        axios.get(`http://localhost:3001/api/v1/branches/organization/${currentOrgId}`, axiosConfig),
-        axios.get(`http://localhost:3001/api/v1/roles`, axiosConfig).catch(() => ({ data: [] })) // Fallback if roles API is missing
+        axios.get(`${API_URL}/api/v1/staff/organization/${currentOrgId}`, axiosConfig),
+        axios.get(`${API_URL}/api/v1/branches/organization/${currentOrgId}`, axiosConfig),
+        axios.get(`${API_URL}/api/v1/roles`, axiosConfig).catch(() => ({ data: [] })) // Fallback if roles API is missing
       ]);
       
       setStaffList(staffRes.data);
@@ -101,7 +104,7 @@ export default function HRDashboardPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.branchId, token]);
+  }, [user?.branchId, token, API_URL]);
 
   useEffect(() => {
     fetchHRData();
@@ -114,7 +117,7 @@ export default function HRDashboardPage() {
     setSuccess(null);
 
     try {
-      await axios.post("http://localhost:3001/api/v1/staff", formData, axiosConfig);
+      await axios.post(`${API_URL}/api/v1/staff`, formData, axiosConfig);
       
       setSuccess(`${formData.firstName} ${formData.lastName} has been successfully provisioned.`);
       setFormData({ firstName: "", lastName: "", email: "", phone: "", password: "", roleId: "", branchId: "" });

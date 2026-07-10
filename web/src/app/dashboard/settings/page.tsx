@@ -28,6 +28,10 @@ interface Branch {
 
 export default function BranchManagementPage() {
   const { user, token } = useAuthStore();
+  
+  // Dynamic URL evaluation matching local fallback or production environment variable
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+  
   const [branches, setBranches] = useState<Branch[]>([]);
   const [organizationId, setOrganizationId] = useState<string | null>(null);
   
@@ -56,7 +60,7 @@ export default function BranchManagementPage() {
       
       // 1. Fetch the current user's branch to determine their Organization ID
       const userBranchRes = await axios.get(
-        `http://localhost:3001/api/v1/branches/${user.branchId}`, 
+        `${API_URL}/api/v1/branches/${user.branchId}`, 
         axiosConfig
       );
       const currentOrgId = userBranchRes.data.organizationId;
@@ -64,7 +68,7 @@ export default function BranchManagementPage() {
 
       // 2. Fetch all branches belonging to that Organization
       const branchesRes = await axios.get(
-        `http://localhost:3001/api/v1/branches/organization/${currentOrgId}`,
+        `${API_URL}/api/v1/branches/organization/${currentOrgId}`,
         axiosConfig
       );
       
@@ -75,7 +79,7 @@ export default function BranchManagementPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.branchId, token]);
+  }, [user?.branchId, token, API_URL]);
 
   useEffect(() => {
     fetchBranches();
@@ -91,7 +95,7 @@ export default function BranchManagementPage() {
 
     try {
       await axios.post(
-        "http://localhost:3001/api/v1/branches",
+        `${API_URL}/api/v1/branches`,
         {
           organizationId,
           name,

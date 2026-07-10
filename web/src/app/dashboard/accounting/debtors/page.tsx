@@ -42,6 +42,9 @@ interface Customer {
 export default function DebtorsDashboardPage() {
   const { user, token } = useAuthStore();
   
+  // Dynamic URL evaluation matching local fallback or production environment variable
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+  
   // Data State
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [organizationId, setOrganizationId] = useState<string | null>(null);
@@ -67,18 +70,18 @@ export default function DebtorsDashboardPage() {
     if (!user?.branchId || !token) return;
     try {
       setIsLoading(true);
-      const branchRes = await axios.get(`http://localhost:3001/api/v1/branches/${user.branchId}`, axiosConfig);
+      const branchRes = await axios.get(`${API_URL}/api/v1/branches/${user.branchId}`, axiosConfig);
       const currentOrgId = branchRes.data.organizationId;
       setOrganizationId(currentOrgId);
 
-      const res = await axios.get(`http://localhost:3001/api/v1/debtors/customers/${currentOrgId}`, axiosConfig);
+      const res = await axios.get(`${API_URL}/api/v1/debtors/customers/${currentOrgId}`, axiosConfig);
       setCustomers(res.data);
     } catch (err) {
       console.error("Failed to load debtors data", err);
     } finally {
       setIsLoading(false);
     }
-  }, [user?.branchId, token]);
+  }, [user?.branchId, token, API_URL]);
 
   useEffect(() => {
     fetchDebtorsData();
@@ -89,7 +92,7 @@ export default function DebtorsDashboardPage() {
     if (!organizationId) return;
     setIsSubmitting(true);
     try {
-      await axios.post("http://localhost:3001/api/v1/debtors/customer", { ...customerForm, organizationId }, axiosConfig);
+      await axios.post(`${API_URL}/api/v1/debtors/customer`, { ...customerForm, organizationId }, axiosConfig);
       setCustomerForm({ name: "", phone: "" });
       fetchDebtorsData();
       setIsCustomerModalOpen(false);
@@ -105,7 +108,7 @@ export default function DebtorsDashboardPage() {
     if (!user?.branchId || !activeCustomerForInvoice) return;
     setIsSubmitting(true);
     try {
-      await axios.post("http://localhost:3001/api/v1/debtors/invoice", { 
+      await axios.post(`${API_URL}/api/v1/debtors/invoice`, { 
         customerId: activeCustomerForInvoice,
         branchId: user.branchId,
         amount: Number(invoiceForm.amount)
@@ -125,7 +128,7 @@ export default function DebtorsDashboardPage() {
     if (!user?.branchId || !activeCustomerForPayment) return;
     setIsSubmitting(true);
     try {
-      await axios.post("http://localhost:3001/api/v1/debtors/payment", { 
+      await axios.post(`${API_URL}/api/v1/debtors/payment`, { 
         customerId: activeCustomerForPayment,
         branchId: user.branchId,
         amount: Number(paymentForm.amount),
