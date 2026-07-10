@@ -1,3 +1,4 @@
+// web/src/app/dashboard/production/page.tsx
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -60,6 +61,9 @@ interface ProductionOrder {
 
 export default function ProductionDashboardPage() {
   const { user, token } = useAuthStore();
+
+  // Dynamic URL evaluation matching local fallback or production environment variable
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
   
   // Data State
   const [orders, setOrders] = useState<ProductionOrder[]>([]);
@@ -96,14 +100,14 @@ export default function ProductionDashboardPage() {
     
     try {
       setIsLoading(true);
-      const branchRes = await axios.get(`http://localhost:3001/api/v1/branches/${user.branchId}`, axiosConfig);
+      const branchRes = await axios.get(`${API_URL}/api/v1/branches/${user.branchId}`, axiosConfig);
       const currentOrgId = branchRes.data.organizationId;
       setOrganizationId(currentOrgId);
 
       const [ordersRes, recipesRes, catalogRes] = await Promise.all([
-        axios.get(`http://localhost:3001/api/v1/production/orders/${user.branchId}`, axiosConfig),
-        axios.get(`http://localhost:3001/api/v1/production/recipes/${currentOrgId}`, axiosConfig),
-        axios.get(`http://localhost:3001/api/v1/inventory/catalog/${currentOrgId}`, axiosConfig)
+        axios.get(`${API_URL}/api/v1/production/orders/${user.branchId}`, axiosConfig),
+        axios.get(`${API_URL}/api/v1/production/recipes/${currentOrgId}`, axiosConfig),
+        axios.get(`${API_URL}/api/v1/inventory/catalog/${currentOrgId}`, axiosConfig)
       ]);
       
       setOrders(ordersRes.data);
@@ -114,7 +118,7 @@ export default function ProductionDashboardPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.branchId, token]);
+  }, [user?.branchId, token, API_URL]);
 
   useEffect(() => {
     fetchProductionData();
@@ -128,7 +132,7 @@ export default function ProductionDashboardPage() {
     setIsSubmitting(true); setError(null); setSuccess(null);
 
     try {
-      await axios.post("http://localhost:3001/api/v1/production/order", { 
+      await axios.post(`${API_URL}/api/v1/production/order`, { 
         recipeId: orderForm.recipeId, branchId: user.branchId, targetQty: Number(orderForm.targetQty) 
       }, axiosConfig);
       
@@ -166,9 +170,9 @@ export default function ProductionDashboardPage() {
       let targetId = recipeForm.targetItemId;
 
       if (isEditMode && targetId) {
-        await axios.patch(`http://localhost:3001/api/v1/inventory/item/${targetId}`, itemPayload, axiosConfig);
+        await axios.patch(`${API_URL}/api/v1/inventory/item/${targetId}`, itemPayload, axiosConfig);
       } else {
-        const itemRes = await axios.post(`http://localhost:3001/api/v1/inventory/item`, itemPayload, axiosConfig);
+        const itemRes = await axios.post(`${API_URL}/api/v1/inventory/item`, itemPayload, axiosConfig);
         targetId = itemRes.data.id;
       }
 
@@ -181,10 +185,10 @@ export default function ProductionDashboardPage() {
       };
 
       if (isEditMode) {
-        await axios.patch(`http://localhost:3001/api/v1/production/recipe/${recipeForm.id}`, recipePayload, axiosConfig);
+        await axios.patch(`${API_URL}/api/v1/production/recipe/${recipeForm.id}`, recipePayload, axiosConfig);
         setSuccess("Menu Item updated successfully.");
       } else {
-        await axios.post(`http://localhost:3001/api/v1/production/recipe`, recipePayload, axiosConfig);
+        await axios.post(`${API_URL}/api/v1/production/recipe`, recipePayload, axiosConfig);
         setSuccess("Menu Item created successfully.");
       }
       
@@ -200,7 +204,7 @@ export default function ProductionDashboardPage() {
   const handleDeleteRecipe = async (id: string, name: string) => {
     if (!confirm(`Are you sure you want to delete ${name}?`)) return;
     try {
-      await axios.delete(`http://localhost:3001/api/v1/production/recipe/${id}`, axiosConfig);
+      await axios.delete(`${API_URL}/api/v1/production/recipe/${id}`, axiosConfig);
       fetchProductionData();
     } catch (err: any) {
       alert("Failed to delete recipe. It may be linked to past production orders.");
@@ -209,7 +213,7 @@ export default function ProductionDashboardPage() {
 
   const updateStatus = async (orderId: string, newStatus: string) => {
     try {
-      await axios.patch(`http://localhost:3001/api/v1/production/order/${orderId}/status`, { status: newStatus }, axiosConfig);
+      await axios.patch(`${API_URL}/api/v1/production/order/${orderId}/status`, { status: newStatus }, axiosConfig);
       fetchProductionData();
     } catch (err: any) {
       alert(err.response?.data?.message || "Failed to update status. Check inventory levels.");
