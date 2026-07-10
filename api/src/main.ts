@@ -1,4 +1,3 @@
-// api/src/main.ts
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
@@ -6,14 +5,18 @@ import { ValidationPipe } from '@nestjs/common';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // 1. Enable CORS for the Next.js Frontend
+  // 1. Configure CORS for both local development and Cloudflare Pages
+  const allowedOrigins = [
+    'http://localhost:3000',
+    'https://antiquebake-erp.pages.dev'
+  ];
+
   app.enableCors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: allowedOrigins,
     credentials: true,
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
   });
 
-  // 2. Enable Global Validation for all incoming requests
+  // 2. Enable Global Security Validation
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true, // Strips away any properties without decorators
@@ -22,13 +25,11 @@ async function bootstrap() {
     }),
   );
 
-  // 3. Set an API Prefix for clean routing
+  // 3. Set an API Prefix to match the Frontend Axios requests
   app.setGlobalPrefix('api/v1');
 
-  // 4. Start the server on port 3001 to keep 3000 free for Next.js
+  // 4. Bind to Render's dynamic PORT, fallback to 3001 locally
   const port = process.env.PORT || 3001;
   await app.listen(port);
-  
-  console.log(`AntiqueBake ERP API is running on: http://localhost:${port}/api/v1`);
 }
 bootstrap();

@@ -43,7 +43,10 @@ export default function LoginPage() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setError(null);
     try {
-      const response = await axios.post("http://localhost:3001/api/v1/auth/login", values);
+      // Dynamic URL evaluation matching local fallback or production environment variable
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+      const response = await axios.post(`${API_URL}/api/v1/auth/login`, values);
+      
       const { access_token, user } = response.data;
       
       setAuth(access_token, user);

@@ -72,10 +72,13 @@ export default function DashboardPage() {
     try {
       setIsLoading(true);
       
+      // Dynamic URL evaluation matching local fallback or production environment variable
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+      
       const [posRes, stockRes, prodRes] = await Promise.all([
-        axios.get(`http://localhost:3001/api/v1/pos/transactions/${user.branchId}`, axiosConfig),
-        axios.get(`http://localhost:3001/api/v1/inventory/stock/${user.branchId}`, axiosConfig),
-        axios.get(`http://localhost:3001/api/v1/production/orders/${user.branchId}`, axiosConfig)
+        axios.get(`${API_URL}/api/v1/pos/transactions/${user.branchId}`, axiosConfig),
+        axios.get(`${API_URL}/api/v1/inventory/stock/${user.branchId}`, axiosConfig),
+        axios.get(`${API_URL}/api/v1/production/orders/${user.branchId}`, axiosConfig)
       ]);
 
       const today = new Date().toDateString();
