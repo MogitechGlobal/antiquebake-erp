@@ -36,6 +36,9 @@ interface LedgerEntry {
 export default function LedgerDashboardPage() {
   const { user, token } = useAuthStore();
   
+  // Dynamic URL evaluation matching local fallback or production environment variable
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+  
   // Data State
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -62,13 +65,13 @@ export default function LedgerDashboardPage() {
     if (!user?.branchId || !token) return;
     try {
       setIsLoading(true);
-      const branchRes = await axios.get(`http://localhost:3001/api/v1/branches/${user.branchId}`, axiosConfig);
+      const branchRes = await axios.get(`${API_URL}/api/v1/branches/${user.branchId}`, axiosConfig);
       const currentOrgId = branchRes.data.organizationId;
       setOrganizationId(currentOrgId);
 
       const [ledgerRes, accountsRes] = await Promise.all([
-        axios.get(`http://localhost:3001/api/v1/accounting/ledger/${user.branchId}`, axiosConfig),
-        axios.get(`http://localhost:3001/api/v1/accounting/accounts/${currentOrgId}`, axiosConfig)
+        axios.get(`${API_URL}/api/v1/accounting/ledger/${user.branchId}`, axiosConfig),
+        axios.get(`${API_URL}/api/v1/accounting/accounts/${currentOrgId}`, axiosConfig)
       ]);
       
       setLedger(ledgerRes.data);
@@ -78,7 +81,7 @@ export default function LedgerDashboardPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.branchId, token]);
+  }, [user?.branchId, token, API_URL]);
 
   useEffect(() => {
     fetchLedgerData();
@@ -90,7 +93,7 @@ export default function LedgerDashboardPage() {
     if (!organizationId) return;
     setIsSubmitting(true);
     try {
-      await axios.post("http://localhost:3001/api/v1/accounting/account", { ...accountForm, organizationId }, axiosConfig);
+      await axios.post(`${API_URL}/api/v1/accounting/account`, { ...accountForm, organizationId }, axiosConfig);
       setAccountForm({ code: "", name: "", type: "ASSET" });
       fetchLedgerData();
       setIsAccountModalOpen(false);
@@ -129,7 +132,7 @@ export default function LedgerDashboardPage() {
 
     setIsSubmitting(true);
     try {
-      await axios.post("http://localhost:3001/api/v1/accounting/journal", { 
+      await axios.post(`${API_URL}/api/v1/accounting/journal`, { 
         branchId: user.branchId,
         description: journalForm.description,
         entries: validLines 
