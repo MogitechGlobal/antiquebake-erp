@@ -56,6 +56,9 @@ interface Transaction {
 export default function OrdersDashboardPage() {
   const { user, token } = useAuthStore();
   
+  // Dynamic URL evaluation matching local fallback or production environment variable
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+  
   // Data State
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   
@@ -79,14 +82,14 @@ export default function OrdersDashboardPage() {
     if (!user?.branchId || !token) return;
     try {
       setIsLoading(true);
-      const res = await axios.get(`http://localhost:3001/api/v1/pos/transactions/${user.branchId}`, axiosConfig);
+      const res = await axios.get(`${API_URL}/api/v1/pos/transactions/${user.branchId}`, axiosConfig);
       setTransactions(res.data);
     } catch (err) {
       console.error("Failed to load transactions", err);
     } finally {
       setIsLoading(false);
     }
-  }, [user?.branchId, token]);
+  }, [user?.branchId, token, API_URL]);
 
   useEffect(() => {
     fetchTransactions();
@@ -98,7 +101,7 @@ export default function OrdersDashboardPage() {
     
     setIsProcessing(true);
     try {
-      await axios.patch(`http://localhost:3001/api/v1/pos/transaction/${id}/status`, { status: 'CANCELLED' }, axiosConfig);
+      await axios.patch(`${API_URL}/api/v1/pos/transaction/${id}/status`, { status: 'CANCELLED' }, axiosConfig);
       fetchTransactions();
     } catch (err: any) {
       alert(err.response?.data?.message || "Failed to void transaction.");
