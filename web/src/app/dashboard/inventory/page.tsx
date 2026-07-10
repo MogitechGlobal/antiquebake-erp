@@ -39,8 +39,8 @@ interface CatalogItem {
   sku: string;
   category: string;
   unit: string;
-  cost?: number; // Added Cost
-  linkedRecipes?: RecipeLink[]; // Added Usage
+  cost?: number; 
+  linkedRecipes?: RecipeLink[]; 
 }
 
 interface StockItem {
@@ -56,6 +56,9 @@ interface InventoryRow extends CatalogItem {
 
 export default function InventoryDashboardPage() {
   const { user, token } = useAuthStore();
+  
+  // Dynamic URL evaluation matching local fallback or production environment variable
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
   
   // Data State
   const [inventory, setInventory] = useState<InventoryRow[]>([]);
@@ -74,7 +77,7 @@ export default function InventoryDashboardPage() {
   const [isEditMode, setIsEditMode] = useState(false);
   const [selectedItem, setSelectedItem] = useState<InventoryRow | null>(null);
   const [adjustQuantity, setAdjustQuantity] = useState<number | "">("");
-  const [isAdjusting, setIsAdjusting] = useState(false); // <--- Added isAdjusting
+  const [isAdjusting, setIsAdjusting] = useState(false); 
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -97,13 +100,13 @@ export default function InventoryDashboardPage() {
     try {
       setIsLoading(true);
       
-      const branchRes = await axios.get(`http://localhost:3001/api/v1/branches/${user.branchId}`, axiosConfig);
+      const branchRes = await axios.get(`${API_URL}/api/v1/branches/${user.branchId}`, axiosConfig);
       const currentOrgId = branchRes.data.organizationId;
       setOrganizationId(currentOrgId);
 
       const [catalogRes, stockRes] = await Promise.all([
-        axios.get(`http://localhost:3001/api/v1/inventory/catalog/${currentOrgId}`, axiosConfig),
-        axios.get(`http://localhost:3001/api/v1/inventory/stock/${user.branchId}`, axiosConfig)
+        axios.get(`${API_URL}/api/v1/inventory/catalog/${currentOrgId}`, axiosConfig),
+        axios.get(`${API_URL}/api/v1/inventory/stock/${user.branchId}`, axiosConfig)
       ]);
       
       const catalog: CatalogItem[] = catalogRes.data;
@@ -113,8 +116,8 @@ export default function InventoryDashboardPage() {
         const stockRecord = stock.find(s => s.itemId === item.id);
         return {
           ...item,
-          cost: item.cost || 0, // Safe default until DB supports cost
-          linkedRecipes: item.linkedRecipes || [], // Safe default until DB joins recipes
+          cost: item.cost || 0, 
+          linkedRecipes: item.linkedRecipes || [], 
           quantity: stockRecord ? stockRecord.quantity : 0
         };
       });
@@ -126,7 +129,7 @@ export default function InventoryDashboardPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.branchId, token]);
+  }, [user?.branchId, token, API_URL]);
 
   useEffect(() => {
     fetchInventoryData();
@@ -142,7 +145,6 @@ export default function InventoryDashboardPage() {
     setSuccess(null);
 
     try {
-      // Base payload matching both DTOs[cite: 14]
       const payload = { 
         name: formData.name, 
         sku: formData.sku, 
@@ -152,12 +154,10 @@ export default function InventoryDashboardPage() {
       };
 
       if (isEditMode) {
-        // PATCH: Do not send organizationId (matches UpdateItemDto)[cite: 14]
-        await axios.patch(`http://localhost:3001/api/v1/inventory/item/${formData.id}`, payload, axiosConfig);
+        await axios.patch(`${API_URL}/api/v1/inventory/item/${formData.id}`, payload, axiosConfig);
         setSuccess(`${formData.name} updated successfully.`);
       } else {
-        // POST: Must include organizationId (matches CreateItemDto)[cite: 14]
-        await axios.post("http://localhost:3001/api/v1/inventory/item", { ...payload, organizationId }, axiosConfig);
+        await axios.post(`${API_URL}/api/v1/inventory/item`, { ...payload, organizationId }, axiosConfig);
         setSuccess(`${formData.name} added to the catalog.`);
       }
       
@@ -174,7 +174,7 @@ export default function InventoryDashboardPage() {
     if (!confirm(`Are you sure you want to permanently delete ${name}? This will remove it from all branch stocks.`)) return;
     
     try {
-      await axios.delete(`http://localhost:3001/api/v1/inventory/item/${id}`, axiosConfig);
+      await axios.delete(`${API_URL}/api/v1/inventory/item/${id}`, axiosConfig);
       fetchInventoryData();
     } catch (err: any) {
       alert(err.response?.data?.message || "Failed to delete item. It might be linked to active recipes or LPOs.");
@@ -189,7 +189,7 @@ export default function InventoryDashboardPage() {
     setSuccess(null);
 
     try {
-      await axios.patch("http://localhost:3001/api/v1/inventory/stock", { 
+      await axios.patch(`${API_URL}/api/v1/inventory/stock`, { 
         itemId: selectedItem.id, branchId: user.branchId, quantity: Number(adjustQuantity) 
       }, axiosConfig);
       
