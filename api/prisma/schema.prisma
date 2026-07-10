@@ -1,0 +1,324 @@
+// api/prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ------------------------------------------------------
+// MODULE 1: AUTHENTICATION, RBAC & ORGANIZATION
+// ------------------------------------------------------
+
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  address   String?
+  city      String?
+  country   String?
+  phone     String?
+  email     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  branches Branch[]
+  staff    Staff[]
+  items    Item[]
+  recipes Recipe[]
+  suppliers Supplier[]
+  accounts Account[]
+  customers Customer[]
+}
+
+model Branch {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String
+  code           String   @unique
+  address        String?
+  isMain         Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  users        User[]
+  inventories  Inventory[]
+  productionOrders ProductionOrder[]
+  salesTransactions SalesTransaction[]
+  purchaseOrders PurchaseOrder[]
+  ledgerEntries LedgerEntry[]
+  invoices Invoice[]
+  payments Payment[]
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  permissions RolePermission[]
+  users       User[]
+}
+
+model Permission {
+  id          String   @id @default(uuid())
+  action      String // e.g., "create", "read", "update", "delete"
+  subject     String // e.g., "ProductionOrder", "Inventory", "Sales"
+  description String?
+  createdAt   DateTime @default(now())
+
+  roles RolePermission[]
+
+  @@unique([action, subject])
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  assignedAt   DateTime @default(now())
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+}
+
+model Staff {
+  id             String   @id @default(uuid())
+  organizationId String
+  firstName      String
+  lastName       String
+  employeeCode   String   @unique
+  phone          String?
+  email          String?  @unique
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User?
+}
+
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  roleId       String
+  branchId     String
+  staffId      String    @unique
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  staff  Staff  @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  salesTransactions SalesTransaction[]
+}
+
+model Item {
+  id             String       @id @default(uuid())
+  name           String
+  sku            String
+  category       String
+  unit           String
+  cost           Float        @default(0)
+  price          Float        @default(0)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  inventories    Inventory[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([sku, organizationId])
+
+  targetOfRecipe   Recipe?            @relation("TargetItem")
+  ingredientIn     RecipeIngredient[] @relation("IngredientItem")
+  salesItems SalesItem[]
+  purchaseOrderItems PurchaseOrderItem[]
+}
+
+model Inventory {
+  id        String   @id @default(uuid())
+  quantity  Float    @default(0)
+  itemId    String
+  branchId  String
+  item      Item     @relation(fields: [itemId], references: [id])
+  branch    Branch   @relation(fields: [branchId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([itemId, branchId])
+}
+
+model Recipe {
+  id             String             @id @default(uuid())
+  name           String
+  targetItemId   String             @unique // The finished good being created
+  targetItem     Item               @relation("TargetItem", fields: [targetItemId], references: [id])
+  ingredients    RecipeIngredient[]
+  organizationId String
+  organization   Organization       @relation(fields: [organizationId], references: [id])
+  orders         ProductionOrder[]
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+}
+
+model RecipeIngredient {
+  id           String   @id @default(uuid())
+  recipeId     String
+  recipe       Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  itemId       String   // The raw material required
+  item         Item     @relation("IngredientItem", fields: [itemId], references: [id])
+  quantity     Float    // Amount needed per 1 unit of the target item
+}
+
+model ProductionOrder {
+  id           String   @id @default(uuid())
+  orderNumber  String   @unique
+  recipeId     String
+  recipe       Recipe   @relation(fields: [recipeId], references: [id])
+  branchId     String
+  branch       Branch   @relation(fields: [branchId], references: [id])
+  targetQty    Float    // How many finished goods to produce
+  status       String   @default("PENDING") // PENDING, IN_PROGRESS, COMPLETED, CANCELLED
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model SalesTransaction {
+  id            String      @id @default(uuid())
+  receiptNumber String      @unique
+  branchId      String
+  branch        Branch      @relation(fields: [branchId], references: [id])
+  staffId       String      // The cashier processing the sale
+  staff         User        @relation(fields: [staffId], references: [id])
+  totalAmount   Float
+  paymentMethod String      // e.g., CASH, CARD, MOBILE
+  status        String      @default("COMPLETED")
+  items         SalesItem[]
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model SalesItem {
+  id            String           @id @default(uuid())
+  transactionId String
+  transaction   SalesTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  itemId        String
+  item          Item             @relation(fields: [itemId], references: [id])
+  quantity      Float
+  unitPrice     Float
+  subtotal      Float
+}
+
+model Supplier {
+  id             String          @id @default(uuid())
+  name           String
+  contactPerson  String?
+  phone          String?
+  email          String?
+  organizationId String
+  organization   Organization    @relation(fields: [organizationId], references: [id])
+  purchaseOrders PurchaseOrder[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+}
+
+model PurchaseOrder {
+  id          String              @id @default(uuid())
+  poNumber    String              @unique
+  supplierId  String
+  supplier    Supplier            @relation(fields: [supplierId], references: [id])
+  branchId    String
+  branch      Branch              @relation(fields: [branchId], references: [id])
+  status      String              @default("PENDING") // PENDING, RECEIVED, CANCELLED
+  totalAmount Float
+  items       PurchaseOrderItem[]
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+}
+
+model PurchaseOrderItem {
+  id              String        @id @default(uuid())
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  itemId          String
+  item            Item          @relation(fields: [itemId], references: [id])
+  quantity        Float
+  unitPrice       Float
+  subtotal        Float
+}
+
+model Account {
+  id             String        @id @default(uuid())
+  code           String        // e.g., "1000" for Cash, "4000" for Sales
+  name           String
+  type           String        // ASSET, LIABILITY, EQUITY, REVENUE, EXPENSE
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id])
+  entries        LedgerEntry[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@unique([code, organizationId])
+}
+
+model LedgerEntry {
+  id            String   @id @default(uuid())
+  transactionId String   // Grouping ID for double-entry (e.g., JRN-123456)
+  accountId     String
+  account       Account  @relation(fields: [accountId], references: [id])
+  branchId      String
+  branch        Branch   @relation(fields: [branchId], references: [id])
+  description   String
+  debit         Float    @default(0)
+  credit        Float    @default(0)
+  entryDate     DateTime @default(now())
+  createdAt     DateTime @default(now())
+}
+
+model Customer {
+  id             String       @id @default(uuid())
+  name           String
+  phone          String?
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  invoices       Invoice[]
+  payments       Payment[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model Invoice {
+  id          String   @id @default(uuid())
+  invoiceNum  String   @unique
+  amount      Float
+  balance     Float
+  status      String   @default("UNPAID") // UNPAID, PARTIAL, PAID
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id])
+  branchId    String
+  branch      Branch   @relation(fields: [branchId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Payment {
+  id          String   @id @default(uuid())
+  receiptNum  String   @unique
+  amount      Float
+  method      String   // CASH, BANK, MOBILE
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id])
+  branchId    String
+  branch      Branch   @relation(fields: [branchId], references: [id])
+  createdAt   DateTime @default(now())
+}

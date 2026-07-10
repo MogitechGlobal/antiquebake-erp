@@ -1,0 +1,24 @@
+/* web/src/app/globals.css */
+@import "tailwindcss";
+
+@theme {
+  --color-bakery-cream: #FFFDD0;
+  --color-bakery-wheat: #F5DEB3;
+  --color-bakery-gold: #DAA520;
+  --color-bakery-brown: #8B4513;
+  --color-bakery-chocolate: #3D1C00;
+}
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 20 14.3% 4.1%;
+    --border: 20 5.9% 90%;
+  }
+  
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: system-ui, -apple-system, sans-serif;
+  }
+}
