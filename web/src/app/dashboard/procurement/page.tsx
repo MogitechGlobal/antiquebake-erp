@@ -63,6 +63,9 @@ interface PurchaseOrder {
 export default function ProcurementDashboardPage() {
   const { user, token } = useAuthStore();
   
+  // Dynamic URL evaluation matching local fallback or production environment variable
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+  
   // Data State
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -92,14 +95,14 @@ export default function ProcurementDashboardPage() {
     if (!user?.branchId || !token) return;
     try {
       setIsLoading(true);
-      const branchRes = await axios.get(`http://localhost:3001/api/v1/branches/${user.branchId}`, axiosConfig);
+      const branchRes = await axios.get(`${API_URL}/api/v1/branches/${user.branchId}`, axiosConfig);
       const currentOrgId = branchRes.data.organizationId;
       setOrganizationId(currentOrgId);
 
       const [ordersRes, suppliersRes, catalogRes] = await Promise.all([
-        axios.get(`http://localhost:3001/api/v1/procurement/orders/${user.branchId}`, axiosConfig),
-        axios.get(`http://localhost:3001/api/v1/procurement/suppliers/${currentOrgId}`, axiosConfig),
-        axios.get(`http://localhost:3001/api/v1/inventory/catalog/${currentOrgId}`, axiosConfig)
+        axios.get(`${API_URL}/api/v1/procurement/orders/${user.branchId}`, axiosConfig),
+        axios.get(`${API_URL}/api/v1/procurement/suppliers/${currentOrgId}`, axiosConfig),
+        axios.get(`${API_URL}/api/v1/inventory/catalog/${currentOrgId}`, axiosConfig)
       ]);
       
       setOrders(ordersRes.data);
@@ -110,7 +113,7 @@ export default function ProcurementDashboardPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.branchId, token]);
+  }, [user?.branchId, token, API_URL]);
 
   useEffect(() => {
     fetchProcurementData();
@@ -123,7 +126,7 @@ export default function ProcurementDashboardPage() {
     if (!organizationId) return;
     setIsSubmitting(true);
     try {
-      await axios.post("http://localhost:3001/api/v1/procurement/supplier", { ...supplierForm, organizationId }, axiosConfig);
+      await axios.post(`${API_URL}/api/v1/procurement/supplier`, { ...supplierForm, organizationId }, axiosConfig);
       setSupplierForm({ name: "", contactPerson: "", phone: "", email: "" });
       fetchProcurementData();
       setIsSupplierModalOpen(false);
@@ -151,7 +154,7 @@ export default function ProcurementDashboardPage() {
 
     try {
       // Create the base order
-      const res = await axios.post("http://localhost:3001/api/v1/procurement/order", { 
+      const res = await axios.post(`${API_URL}/api/v1/procurement/order`, { 
         supplierId: lpoForm.supplierId, 
         branchId: user.branchId,
         items: validItems 
@@ -159,7 +162,7 @@ export default function ProcurementDashboardPage() {
 
       // If Direct GRN, immediately process the receipt
       if (isDirectGrn) {
-        await axios.patch(`http://localhost:3001/api/v1/procurement/order/${res.data.id}/status`, { status: "RECEIVED" }, axiosConfig);
+        await axios.patch(`${API_URL}/api/v1/procurement/order/${res.data.id}/status`, { status: "RECEIVED" }, axiosConfig);
       }
       
       setLpoForm({ supplierId: "", isDirectGrn: false });
@@ -179,7 +182,7 @@ export default function ProcurementDashboardPage() {
     if (!confirm("Confirming receipt will automatically add these items to your inventory. Proceed?")) return;
     setIsSubmitting(true);
     try {
-      await axios.patch(`http://localhost:3001/api/v1/procurement/order/${orderId}/status`, { status: "RECEIVED" }, axiosConfig);
+      await axios.patch(`${API_URL}/api/v1/procurement/order/${orderId}/status`, { status: "RECEIVED" }, axiosConfig);
       fetchProcurementData();
       setSelectedOrder(null);
     } catch (err) {
@@ -193,7 +196,7 @@ export default function ProcurementDashboardPage() {
     if (!confirm("Are you sure you want to cancel this order?")) return;
     setIsSubmitting(true);
     try {
-      await axios.patch(`http://localhost:3001/api/v1/procurement/order/${orderId}/status`, { status: "CANCELLED" }, axiosConfig);
+      await axios.patch(`${API_URL}/api/v1/procurement/order/${orderId}/status`, { status: "CANCELLED" }, axiosConfig);
       fetchProcurementData();
       setSelectedOrder(null);
     } catch (err) {
