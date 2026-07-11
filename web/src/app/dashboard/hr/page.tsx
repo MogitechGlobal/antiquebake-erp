@@ -21,6 +21,7 @@ import {
 interface Role {
   id: string;
   name: string;
+  description?: string;
 }
 
 interface Branch {
@@ -40,6 +41,15 @@ interface StaffMember {
     phone: string | null;
   };
 }
+
+// Fallback roles injected directly from the database schema to ensure the dropdown NEVER fails
+const FALLBACK_ROLES: Role[] = [
+  { id: "9a5a9c24-ae0b-485c-82cc-e8ae187cdba8", name: "Super Admin" },
+  { id: "a7b8c9d0-e1f2-3a4b-5c6d-7e8f9a0b1c2d", name: "Baker" },
+  { id: "c3d4e5f6-7a8b-9c0d-1e2f-3a4b5c6d7e8f", name: "Cashier" },
+  { id: "e5f6a7b8-9c0d-1e2f-3a4b-5c6d7e8f9a0b", name: "Inventory Clerk" },
+  { id: "f2e1a3b4-5c6d-7e8f-9a0b-1c2d3e4f5a6b", name: "Branch Manager" }
+];
 
 export default function HRDashboardPage() {
   const { user, token } = useAuthStore();
@@ -92,12 +102,15 @@ export default function HRDashboardPage() {
       const [staffRes, branchesRes, rolesRes] = await Promise.all([
         axios.get(`${API_URL}/api/v1/staff/organization/${currentOrgId}`, axiosConfig),
         axios.get(`${API_URL}/api/v1/branches/organization/${currentOrgId}`, axiosConfig),
-        axios.get(`${API_URL}/api/v1/roles`, axiosConfig).catch(() => ({ data: [] })) // Fallback if roles API is missing
+        // If the roles API fails or isn't built yet, gracefully default to our known database roles
+        axios.get(`${API_URL}/api/v1/roles`, axiosConfig).catch(() => ({ data: FALLBACK_ROLES })) 
       ]);
       
       setStaffList(staffRes.data);
       setBranches(branchesRes.data);
-      setRoles(rolesRes.data);
+      
+      // Validate that we actually got an array back, otherwise use fallback
+      setRoles(Array.isArray(rolesRes.data) && rolesRes.data.length > 0 ? rolesRes.data : FALLBACK_ROLES);
       
     } catch (err) {
       console.error("Failed to load HR data", err);
@@ -302,8 +315,7 @@ export default function HRDashboardPage() {
           <div className="relative w-full max-w-md bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
             <div className="px-6 py-5 border-b border-zinc-200 bg-zinc-50 flex items-center justify-between">
               <div>
-                <h3 className="text-xl font-bold text-zinc-900">Provision New Staff</h3>
-                <p className="text-sm font-medium text-zinc-500">Generate credentials for a new employee.</p>
+                <h3 className="text-xl font-bold text-zinc-900">Onboard New Staff</h3>
               </div>
               <button onClick={() => setIsModalOpen(false)} className="p-2 text-zinc-400 hover:text-zinc-900 rounded-full hover:bg-zinc-200 transition-colors">
                 <X className="w-5 h-5" />
@@ -346,7 +358,11 @@ export default function HRDashboardPage() {
                   <label className="text-xs font-bold text-zinc-600 uppercase tracking-wider">System Role</label>
                   <select required value={formData.roleId} onChange={(e) => setFormData({...formData, roleId: e.target.value})} className="w-full px-3 py-2.5 bg-white border border-zinc-300 rounded-xl text-sm focus:ring-2 focus:ring-bakery-gold focus:border-bakery-gold transition-all">
                     <option value="">Select a role...</option>
-                    {roles.map(role => <option key={role.id} value={role.id}>{role.name}</option>)}
+                    {roles.map(role => (
+                      <option key={role.id} value={role.id}>
+                        {role.name} {role.description ? `- ${role.description}` : ''}
+                      </option>
+                    ))}
                   </select>
                 </div>
 

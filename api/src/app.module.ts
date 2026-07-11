@@ -10,6 +10,7 @@ import { PosModule } from './pos/pos.module';
 import { ProcurementModule } from './procurement/procurement.module';
 import { AccountingModule } from './accounting/accounting.module';
 import { DebtorsModule } from './debtors/debtors.module';
+import { RolesModule } from './roles/roles.module';
 
 @Module({
   imports: [
@@ -22,7 +23,8 @@ import { DebtorsModule } from './debtors/debtors.module';
     PosModule,
     ProcurementModule,
     AccountingModule,
-    DebtorsModule
+    DebtorsModule,
+    RolesModule
   ],
   controllers: [], 
   providers: [],
