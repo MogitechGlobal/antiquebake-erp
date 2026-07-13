@@ -23,35 +23,117 @@ import {
   FileText
 } from "lucide-react";
 
-type SubItem = { name: string; href: string };
+// --- 1. DEFINE ROLE-BASED ACCESS GROUPS ---
+const ADMINS = ["Super Admin", "Admin"];
+const MANAGERS = [...ADMINS, "Branch Manager"];
+const POS_STAFF = [...MANAGERS, "Cashier", "Sales Personel"];
+const INVENTORY_STAFF = [...MANAGERS, "Inventory Clerk"];
+const KITCHEN_STAFF = [...MANAGERS, "Baker - Oven Handler", "Baker/Mixer Machine Handler", "Cook - Frier Machiner Handler", "Team Builder - Position Replacer"];
+// Public Attendant is restricted to the basic dashboard unless specified otherwise
+const ALL_STAFF = [...POS_STAFF, ...INVENTORY_STAFF, ...KITCHEN_STAFF, "Public Attendant"];
+
+type SubItem = { name: string; href: string; allowedRoles?: string[] };
 type NavItem = {
   name?: string;
   href?: string;
   icon?: any;
   header?: string;
   subItems?: SubItem[];
+  allowedRoles?: string[];
 };
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, token, logout } = useAuthStore();
+  const { user, token, logout } = useAuthStore(); // Extracts user and authentication token[cite: 4]
   
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [openDropdowns, setOpenDropdowns] = useState<Record<string, boolean>>({});
 
-  // 1. Mark the component as mounted on the client[cite: 5]
+  // Enterprise Menu Configuration with RBAC Permissions assigned to specific roles
+  const navItems: NavItem[] = [
+    { header: "COMMAND CENTER", allowedRoles: ALL_STAFF },
+    { name: "Executive Dashboard", href: "/dashboard", icon: LayoutDashboard, allowedRoles: ALL_STAFF },
+
+    { header: "COMMERCE & SALES", allowedRoles: POS_STAFF },
+    { name: "Smart POS", href: "/dashboard/pos", icon: ShoppingCart, allowedRoles: POS_STAFF },
+    { name: "Order Fulfillment", href: "/dashboard/orders", icon: FileText, allowedRoles: [...POS_STAFF, ...KITCHEN_STAFF] },
+
+    { header: "SUPPLY CHAIN", allowedRoles: [...INVENTORY_STAFF, ...KITCHEN_STAFF] },
+    { name: "Inventory Control", href: "/dashboard/inventory", icon: PackageSearch, allowedRoles: INVENTORY_STAFF },
+    { name: "Production & Recipes", href: "/dashboard/production", icon: Factory, allowedRoles: KITCHEN_STAFF },
+    { name: "Procurement (LPO)", href: "/dashboard/procurement", icon: Truck, allowedRoles: INVENTORY_STAFF },
+
+    { header: "FINANCIAL MANAGEMENT", allowedRoles: MANAGERS },
+    {
+      name: "Corporate Finance",
+      icon: Landmark,
+      allowedRoles: MANAGERS,
+      subItems: [
+        { name: "General Ledger (GL)", href: "/dashboard/accounting/ledger", allowedRoles: ADMINS },
+        { name: "Debtors", href: "/dashboard/accounting/debtors", allowedRoles: MANAGERS },
+        { name: "Revenue Analytics", href: "/dashboard/accounting/reports", allowedRoles: MANAGERS }
+      ]
+    },
+
+    { header: "HUMAN CAPITAL", allowedRoles: MANAGERS },
+    {
+      name: "Workforce & Ops",
+      icon: Users,
+      allowedRoles: MANAGERS,
+      subItems: [
+        { name: "Staff Directory", href: "/dashboard/hr", allowedRoles: MANAGERS },
+        { name: "Attendance & Leave", href: "/dashboard/hr/attendance", allowedRoles: MANAGERS },
+        { name: "Payroll & Benefits", href: "/dashboard/hr/payroll", allowedRoles: ADMINS }
+      ]
+    },
+
+    { header: "SYSTEM ADMINISTRATION", allowedRoles: ADMINS },
+    { name: "Settings & Config", href: "/dashboard/settings", icon: Settings, allowedRoles: ADMINS },
+  ];
+
+  // Component mount check
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  // 2. Security Gate: Only check auth AFTER mounting[cite: 5]
+  // --- 2. ROUTE & AUTHENTICATION GUARD ---
   useEffect(() => {
+    // 1. Kick out unauthenticated users
     if (isMounted && !token) {
       router.push("/login");
+      return;
     }
-  }, [isMounted, token, router]);
+
+    // 2. Protect routes from unauthorized roles
+    if (isMounted && user?.role) {
+      let requiredRoles: string[] | undefined = [];
+      let isProtectedPath = false;
+
+      // Scan our configuration to find the current route's permission requirements
+      for (const item of navItems) {
+        if (item.href === pathname) {
+          requiredRoles = item.allowedRoles;
+          isProtectedPath = true;
+          break;
+        }
+        if (item.subItems) {
+          const sub = item.subItems.find(s => s.href === pathname);
+          if (sub) {
+            requiredRoles = sub.allowedRoles || item.allowedRoles;
+            isProtectedPath = true;
+            break;
+          }
+        }
+      }
+
+      // If route is restricted and user role is not in the allowed list, boot them back to the main dashboard
+      if (isProtectedPath && requiredRoles && !requiredRoles.includes(user.role)) {
+        router.push("/dashboard");
+      }
+    }
+  }, [isMounted, token, router, pathname, user]);
 
   const handleLogout = () => {
     logout();
@@ -62,53 +144,31 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     setOpenDropdowns(prev => ({ ...prev, [name]: !prev[name] }));
   };
 
-  // 3. Prevent rendering until the client has mounted and loaded the persisted token[cite: 5]
   if (!isMounted || !token || !user) return null;
 
-  // Enterprise Menu Configuration integrated from PHP source[cite: 4]
-  const navItems: NavItem[] = [
-    { header: "COMMAND CENTER" },
-    { name: "Executive Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  // --- 3. FILTER SIDEBAR NAVIGATION based on permissions ---
+  const authorizedNavItems = navItems.reduce<NavItem[]>((acc, item) => {
+    // Skip item if user doesn't have required role
+    if (item.allowedRoles && !item.allowedRoles.includes(user.role)) {
+      return acc;
+    }
 
-    { header: "COMMERCE & SALES" },
-    { name: "Smart POS", href: "/dashboard/pos", icon: ShoppingCart },
-    { name: "Order Fulfillment", href: "/dashboard/orders", icon: FileText },
-
-    { header: "SUPPLY CHAIN" },
-    { name: "Inventory Control", href: "/dashboard/inventory", icon: PackageSearch },
-    { name: "Production & Recipes", href: "/dashboard/production", icon: Factory },
-    { name: "Procurement (LPO)", href: "/dashboard/procurement", icon: Truck },
-
-    { header: "FINANCIAL MANAGEMENT" },
-    {
-      name: "Corporate Finance",
-      icon: Landmark,
-      subItems: [
-        { name: "General Ledger (GL)", href: "/dashboard/accounting/ledger" },
-        { name: "Debtors", href: "/dashboard/accounting/debtors" },
-        { name: "Revenue Analytics", href: "/dashboard/accounting/reports" }
-      ]
-    },
-
-    { header: "HUMAN CAPITAL" },
-    {
-      name: "Workforce & Ops",
-      icon: Users,
-      subItems: [
-        { name: "Staff Directory", href: "/dashboard/hr" },
-        { name: "Attendance & Leave", href: "/dashboard/hr/attendance" },
-        { name: "Payroll & Benefits", href: "/dashboard/hr/payroll" }
-      ]
-    },
-
-    { header: "SYSTEM ADMINISTRATION" },
-    { name: "Settings & Config", href: "/dashboard/settings", icon: Settings },
-  ];
+    // Process nested dropdowns safely
+    if (item.subItems) {
+      const filteredSubItems = item.subItems.filter(sub => !sub.allowedRoles || sub.allowedRoles.includes(user.role));
+      if (filteredSubItems.length > 0) {
+        acc.push({ ...item, subItems: filteredSubItems });
+      }
+    } else {
+      acc.push(item);
+    }
+    return acc;
+  }, []);
 
   return (
     <div className="min-h-screen bg-zinc-50 flex">
       
-      {/* Mobile Overlay Background[cite: 5] */}
+      {/* Mobile Overlay Background[cite: 4] */}
       {isSidebarOpen && (
         <div 
           className="fixed inset-0 bg-black/60 z-40 lg:hidden backdrop-blur-sm transition-opacity"
@@ -116,7 +176,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         />
       )}
 
-      {/* Sidebar - Off-canvas on mobile, fixed/static on desktop[cite: 5] */}
+      {/* Sidebar - Off-canvas on mobile, fixed/static on desktop[cite: 4] */}
       <aside 
         className={`fixed inset-y-0 left-0 z-50 w-64 bg-zinc-950 text-zinc-300 transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:flex-shrink-0 flex flex-col ${
           isSidebarOpen ? "translate-x-0" : "-translate-x-full"
@@ -127,7 +187,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <Wheat className="w-6 h-6 text-bakery-gold mr-3" />
             <span className="text-lg font-bold text-white tracking-widest uppercase">Antique<span className="text-bakery-gold">Bake</span></span>
           </div>
-          {/* Mobile Close Button[cite: 5] */}
+          {/* Mobile Close Button[cite: 4] */}
           <button 
             onClick={() => setIsSidebarOpen(false)} 
             className="lg:hidden text-zinc-400 hover:text-white transition-colors"
@@ -137,7 +197,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
         
         <nav className="flex-1 overflow-y-auto p-4 space-y-1 custom-scrollbar">
-          {navItems.map((item, index) => {
+          {/* Use the dynamically filtered array instead of raw navItems */}
+          {authorizedNavItems.map((item, index) => {
             // Render Headers[cite: 4]
             if (item.header) {
               return (
@@ -194,7 +255,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               );
             }
 
-            // Render Standard Links[cite: 5]
+            // Render Standard Links[cite: 4]
             const isActive = pathname === item.href;
             return (
               <Link key={item.name} href={item.href as string}
@@ -213,9 +274,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </nav>
       </aside>
 
-      {/* Main Content Area[cite: 5] */}
+      {/* Main Content Area[cite: 4] */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Topbar[cite: 5] */}
+        {/* Topbar[cite: 4] */}
         <header className="h-16 bg-white border-b border-zinc-200 flex items-center justify-between px-6 shadow-sm sticky top-0 z-30 flex-shrink-0">
           <div className="flex items-center">
             <button 
@@ -231,6 +292,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           
           <div className="flex items-center space-x-3 sm:space-x-4">
             <div className="hidden sm:flex flex-col text-right mr-2">
+              {/* Display user firstName, lastName, role, and branchName in the header[cite: 4] */}
               <span className="text-sm font-bold text-zinc-900">{user.firstName} {user.lastName}</span>
               <span className="text-xs font-medium text-bakery-brown">{user.role} • {user.branchName}</span>
             </div>
@@ -243,7 +305,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </header>
 
-        {/* Page Content[cite: 5] */}
+        {/* Page Content[cite: 4] */}
         <main className="flex-1 overflow-auto p-4 sm:p-6 lg:p-8">
           {children}
         </main>
