@@ -1,9 +1,8 @@
-// api/src/debtors/dto/debtors.dto.ts
-import { IsString, IsNotEmpty, IsOptional, IsNumber, Min } from 'class-validator';
+import { IsString, IsNumber, IsOptional, Min, IsArray, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class CreateCustomerDto {
   @IsString()
-  @IsNotEmpty()
   name!: string;
 
   @IsString()
@@ -11,31 +10,50 @@ export class CreateCustomerDto {
   phone?: string;
 
   @IsString()
-  @IsNotEmpty()
   organizationId!: string;
+}
+
+export class UpdateCustomerDto {
+  @IsString()
+  @IsOptional()
+  name?: string;
+
+  @IsString()
+  @IsOptional()
+  phone?: string;
+}
+
+export class InvoiceItemDto {
+  @IsString()
+  itemId!: string;
+
+  @IsNumber()
+  @Min(1)
+  quantity!: number;
+
+  @IsNumber()
+  @Min(0)
+  price!: number;
 }
 
 export class CreateInvoiceDto {
   @IsString()
-  @IsNotEmpty()
   customerId!: string;
 
   @IsString()
-  @IsNotEmpty()
   branchId!: string;
 
-  @IsNumber()
-  @Min(1)
-  amount!: number;
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => InvoiceItemDto)
+  items!: InvoiceItemDto[];
 }
 
-export class CreatePaymentDto {
+export class RecordPaymentDto {
   @IsString()
-  @IsNotEmpty()
   customerId!: string;
 
   @IsString()
-  @IsNotEmpty()
   branchId!: string;
 
   @IsNumber()
@@ -43,6 +61,5 @@ export class CreatePaymentDto {
   amount!: number;
 
   @IsString()
-  @IsNotEmpty()
   method!: string;
 }

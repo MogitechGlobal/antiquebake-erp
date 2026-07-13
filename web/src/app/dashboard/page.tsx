@@ -10,7 +10,6 @@ import {
   PackageOpen, 
   AlertTriangle, 
   Banknote,
-  ArrowUpRight,
   Loader2,
   Factory,
   Package,
@@ -18,11 +17,11 @@ import {
   FileText,
   ArrowRight,
   Clock,
-  Filter,
   Calendar,
   Users, 
   Receipt,
-  Activity
+  Activity,
+  Briefcase
 } from "lucide-react";
 import { 
   AreaChart, 
@@ -46,6 +45,16 @@ interface Transaction {
       lastName: string;
     }
   }
+}
+
+interface Invoice {
+  id: string;
+  invoiceNum: string;
+  amount: number;
+  createdAt: string;
+  customer: {
+    name: string;
+  };
 }
 
 interface StockItem {
@@ -86,6 +95,7 @@ export default function DashboardPage() {
   
   // Raw Data State
   const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
+  const [allInvoices, setAllInvoices] = useState<Invoice[]>([]);
   const [allOrders, setAllOrders] = useState<ProductionOrder[]>([]);
   const [lowStockItems, setLowStockItems] = useState<StockItem[]>([]);
   const [uniqueStaff, setUniqueStaff] = useState<{id: string, name: string}[]>([]);
@@ -107,33 +117,38 @@ export default function DashboardPage() {
       setIsLoading(true);
       const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
       
-      // 1. First, fetch the branch details to get the Organization ID for fetching all staff
       const branchRes = await axios.get(`${API_URL}/api/v1/branches/${user.branchId}`, axiosConfig);
       const currentOrgId = branchRes.data.organizationId;
 
-      // 2. Fetch all required dashboard data concurrently
-      const [posRes, stockRes, prodRes, staffRes] = await Promise.all([
+      const [posRes, stockRes, prodRes, staffRes, custRes] = await Promise.all([
         axios.get(`${API_URL}/api/v1/pos/transactions/${user.branchId}`, axiosConfig),
         axios.get(`${API_URL}/api/v1/inventory/stock/${user.branchId}`, axiosConfig),
         axios.get(`${API_URL}/api/v1/production/orders/${user.branchId}`, axiosConfig),
-        axios.get(`${API_URL}/api/v1/staff/organization/${currentOrgId}`, axiosConfig).catch(() => ({ data: [] }))
+        axios.get(`${API_URL}/api/v1/staff/organization/${currentOrgId}`, axiosConfig).catch(() => ({ data: [] })),
+        axios.get(`${API_URL}/api/v1/debtors/customers/${currentOrgId}`, axiosConfig).catch(() => ({ data: [] }))
       ]);
 
       setAllTransactions(posRes.data);
       setAllOrders(prodRes.data);
 
-      // Populate Staff Dropdown from the full organization roster
+      // Extract all invoices from the customers payload
+      const extractedInvoices = custRes.data?.flatMap((c: any) => 
+        c.invoices.map((inv: any) => ({
+          ...inv,
+          customer: { name: c.name }
+        }))
+      ) || [];
+      setAllInvoices(extractedInvoices);
+
       if (staffRes.data && Array.isArray(staffRes.data)) {
         const staffMapping = staffRes.data.map((member: StaffMember) => ({
           id: member.id,
           name: `${member.staff.firstName} ${member.staff.lastName}`
         }));
-        // Sort alphabetically
         staffMapping.sort((a, b) => a.name.localeCompare(b.name));
         setUniqueStaff(staffMapping);
       }
 
-      // Low Stock Snapshot (Unaffected by date filters)
       const lowStock = stockRes.data.filter((s: StockItem) => s.quantity <= 10);
       setLowStockItems(lowStock);
 
@@ -155,7 +170,7 @@ export default function DashboardPage() {
     
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const startOfYesterday = new Date(startOfToday); startOfYesterday.setDate(startOfYesterday.getDate() - 1);
-    const startOfWeek = new Date(startOfToday); startOfWeek.setDate(now.getDate() - now.getDay() + (now.getDay() === 0 ? -6 : 1)); // Monday start
+    const startOfWeek = new Date(startOfToday); startOfWeek.setDate(now.getDate() - now.getDay() + (now.getDay() === 0 ? -6 : 1)); 
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const startOfYear = new Date(now.getFullYear(), 0, 1);
@@ -177,13 +192,42 @@ export default function DashboardPage() {
     }
   };
 
-  // Apply Filters to Data
+  // Apply Filters to POS Transactions & Invoices
   const filteredTransactions = allTransactions.filter(tx => 
     isDateInPeriod(tx.createdAt) && (selectedStaff === "ALL" || tx.staffId === selectedStaff)
   );
   
-  const filteredRevenue = filteredTransactions.reduce((sum, tx) => sum + tx.totalAmount, 0);
-  const recentFilteredSales = [...filteredTransactions].sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 5);
+  // Note: Invoices are organization/branch level and bypass staff filters
+  const filteredInvoices = allInvoices.filter(inv => isDateInPeriod(inv.createdAt));
+
+  // Merge Data Streams
+  const combinedSales = useMemo(() => {
+    const pos = filteredTransactions.map(tx => ({
+      id: tx.id,
+      reference: tx.receiptNumber,
+      amount: tx.totalAmount,
+      date: tx.createdAt,
+      type: 'POS',
+      details: tx.staff?.staff ? `${tx.staff.staff.firstName}` : 'POS Sale'
+    }));
+
+    const invoices = filteredInvoices.map(inv => ({
+      id: inv.id,
+      reference: inv.invoiceNum || `INV-${inv.id.substring(0,6)}`,
+      amount: inv.amount,
+      date: inv.createdAt,
+      type: 'INVOICE',
+      details: inv.customer.name
+    }));
+
+    return [...pos, ...invoices];
+  }, [filteredTransactions, filteredInvoices]);
+
+  const filteredRevenue = combinedSales.reduce((sum, sale) => sum + sale.amount, 0);
+  
+  const recentFilteredSales = combinedSales
+    .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    .slice(0, 6);
 
   const completedBatchesPeriod = allOrders.filter(o => 
     o.status === 'COMPLETED' && isDateInPeriod(o.createdAt)
@@ -194,17 +238,15 @@ export default function DashboardPage() {
   // --- CHART DATA AGGREGATION ---
   const revenueChartData = useMemo(() => {
     const chartMap = new Map<string, number>();
+    const sortedSales = [...combinedSales].sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     
-    // Sort transactions chronologically
-    const sortedTx = [...filteredTransactions].sort((a,b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-    
-    sortedTx.forEach(tx => {
-      const dateStr = new Date(tx.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      chartMap.set(dateStr, (chartMap.get(dateStr) || 0) + tx.totalAmount);
+    sortedSales.forEach(sale => {
+      const dateStr = new Date(sale.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      chartMap.set(dateStr, (chartMap.get(dateStr) || 0) + sale.amount);
     });
 
     return Array.from(chartMap.entries()).map(([date, revenue]) => ({ date, revenue }));
-  }, [filteredTransactions]);
+  }, [combinedSales]);
 
   // Quick Actions Configuration
   const quickActions = [
@@ -277,7 +319,7 @@ export default function DashboardPage() {
             </select>
           </div>
 
-          {/* Custom Date Group (Only shows if 'custom' is selected) */}
+          {/* Custom Date Group */}
           {period === 'custom' && (
             <div className="flex gap-2 animate-in slide-in-from-left-2">
               <div>
@@ -317,7 +359,6 @@ export default function DashboardPage() {
               ))}
             </select>
           </div>
-
         </div>
       </div>
 
@@ -327,7 +368,7 @@ export default function DashboardPage() {
         <div className="bg-white rounded-2xl p-6 border border-zinc-200 shadow-sm relative overflow-hidden group">
           <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-white to-emerald-500/10 rounded-bl-full -z-10"></div>
           <div className="flex items-center justify-between">
-            <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Period Revenue</p>
+            <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Gross Revenue</p>
             <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600"><Banknote className="w-5 h-5" /></div>
           </div>
           <div className="mt-6 flex items-end justify-between">
@@ -347,7 +388,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Active Orders KPI (Live Snapshot) */}
+        {/* Active Orders KPI */}
         <div className="bg-white rounded-2xl p-6 border border-zinc-200 shadow-sm relative overflow-hidden group">
           <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-white to-amber-500/10 rounded-bl-full -z-10"></div>
           <div className="flex items-center justify-between">
@@ -361,7 +402,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Low Stock KPI (Live Snapshot) */}
+        {/* Low Stock KPI */}
         <div className="bg-white rounded-2xl p-6 border border-zinc-200 shadow-sm relative overflow-hidden group">
           <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-white to-red-500/10 rounded-bl-full -z-10"></div>
           <div className="flex items-center justify-between">
@@ -399,7 +440,7 @@ export default function DashboardPage() {
             <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center mr-3">
               <Activity className="w-5 h-5 text-blue-600" />
             </div>
-            Revenue Trend
+            Unified Revenue Trend
           </h3>
         </div>
         <div className="p-6 h-[380px] w-full bg-white">
@@ -534,7 +575,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Recent Sales Activity */}
+          {/* Unified Recent Sales Activity */}
           <div className="bg-white rounded-[2rem] border border-zinc-200 shadow-sm flex flex-col overflow-hidden">
             <div className="px-6 py-5 border-b border-zinc-100 flex items-center justify-between bg-white">
               <h3 className="text-lg font-extrabold text-zinc-900 flex items-center">
@@ -544,7 +585,7 @@ export default function DashboardPage() {
                 Recent Sales
               </h3>
             </div>
-            <div className="p-2 flex-1 overflow-y-auto max-h-64 bg-zinc-50/50">
+            <div className="p-2 flex-1 overflow-y-auto max-h-[300px] bg-zinc-50/50">
               <div className="space-y-2">
                 {recentFilteredSales.length === 0 ? (
                   <div className="p-8 text-center text-zinc-400">
@@ -553,15 +594,31 @@ export default function DashboardPage() {
                 ) : (
                   recentFilteredSales.map(sale => (
                     <div key={sale.id} className="p-4 bg-white rounded-xl border border-zinc-100 shadow-sm hover:border-emerald-200 transition-colors flex items-center justify-between">
-                      <div>
-                        <p className="font-extrabold text-zinc-900 text-sm">{sale.receiptNumber}</p>
-                        <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mt-1">
-                          {new Date(sale.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      <div className="flex items-center">
+                        {sale.type === 'INVOICE' ? (
+                          <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center mr-3" title="Corporate Invoice">
+                            <Briefcase className="w-4 h-4 text-purple-600" />
+                          </div>
+                        ) : (
+                          <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center mr-3" title="POS Sale">
+                            <ShoppingCart className="w-4 h-4 text-emerald-600" />
+                          </div>
+                        )}
+                        <div>
+                          <p className="font-extrabold text-zinc-900 text-sm leading-tight">{sale.reference}</p>
+                          <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mt-0.5">
+                            {sale.type === 'INVOICE' ? 'Billed to ' : 'Sold by '}{sale.details}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className={`font-black text-sm px-2.5 py-1 rounded-lg border ${sale.type === 'INVOICE' ? 'text-purple-600 bg-purple-50 border-purple-100' : 'text-emerald-600 bg-emerald-50 border-emerald-100'}`}>
+                          +TZS {sale.amount.toLocaleString()}
+                        </span>
+                        <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest mt-1.5">
+                          {new Date(sale.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </p>
                       </div>
-                      <span className="font-black text-emerald-600 text-sm bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-100">
-                        +TZS {sale.totalAmount.toLocaleString()}
-                      </span>
                     </div>
                   ))
                 )}

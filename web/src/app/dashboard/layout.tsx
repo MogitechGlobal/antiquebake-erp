@@ -85,7 +85,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       icon: Landmark,
       subItems: [
         { name: "General Ledger (GL)", href: "/dashboard/accounting/ledger" },
-        { name: "Accounts Rec. & Payable", href: "/dashboard/accounting/debtors" },
+        { name: "Debtors", href: "/dashboard/accounting/debtors" },
         { name: "Revenue Analytics", href: "/dashboard/accounting/reports" }
       ]
     },

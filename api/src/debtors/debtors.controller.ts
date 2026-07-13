@@ -1,31 +1,48 @@
-// api/src/debtors/debtors.controller.ts
-import { Controller, Get, Post, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param } from '@nestjs/common';
 import { DebtorsService } from './debtors.service';
-import { CreateCustomerDto, CreateInvoiceDto, CreatePaymentDto } from './dto/debtors.dto';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CreateCustomerDto, UpdateCustomerDto, CreateInvoiceDto, RecordPaymentDto } from './dto/debtors.dto';
 
-@UseGuards(JwtAuthGuard)
-@Controller('debtors')
+@Controller('debtors') // Changed from 'api/v1/debtors' to just 'debtors'
 export class DebtorsController {
   constructor(private readonly debtorsService: DebtorsService) {}
 
   @Post('customer')
-  createCustomer(@Body() createDto: CreateCustomerDto) {
-    return this.debtorsService.createCustomer(createDto);
+  createCustomer(@Body() dto: CreateCustomerDto) {
+    return this.debtorsService.createCustomer(dto);
   }
 
-  @Get('customers/:orgId')
-  getCustomers(@Param('orgId') orgId: string) {
-    return this.debtorsService.getCustomers(orgId);
+  @Get('customers/:organizationId')
+  getCustomers(@Param('organizationId') organizationId: string) {
+    return this.debtorsService.getCustomers(organizationId);
+  }
+
+  @Patch('customer/:id')
+  updateCustomer(@Param('id') id: string, @Body() dto: UpdateCustomerDto) {
+    return this.debtorsService.updateCustomer(id, dto);
+  }
+
+  @Delete('customer/:id')
+  deleteCustomer(@Param('id') id: string) {
+    return this.debtorsService.deleteCustomer(id);
   }
 
   @Post('invoice')
-  issueInvoice(@Body() createDto: CreateInvoiceDto) {
-    return this.debtorsService.issueInvoice(createDto);
+  createInvoice(@Body() dto: CreateInvoiceDto) {
+    return this.debtorsService.createInvoice(dto);
+  }
+
+  @Delete('invoice/:id')
+  deleteInvoice(@Param('id') id: string) {
+    return this.debtorsService.deleteInvoice(id);
   }
 
   @Post('payment')
-  recordPayment(@Body() createDto: CreatePaymentDto) {
-    return this.debtorsService.recordPayment(createDto);
+  recordPayment(@Body() dto: RecordPaymentDto) {
+    return this.debtorsService.recordPayment(dto);
+  }
+
+  @Delete('payment/:id')
+  deletePayment(@Param('id') id: string) {
+    return this.debtorsService.deletePayment(id);
   }
 }

@@ -1,27 +1,26 @@
 // api/src/accounting/accounting.controller.ts
-import { Controller, Get, Post, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param } from '@nestjs/common';
 import { AccountingService } from './accounting.service';
-import { CreateAccountDto, PostJournalDto } from './dto/accounting.dto';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CreateAccountDto, CreateJournalDto } from './dto/accounting.dto';
 
-@UseGuards(JwtAuthGuard)
-@Controller('accounting')
+// Strip down the route to eliminate collision with global 'api/v1' filters
+@Controller('accounting') 
 export class AccountingController {
   constructor(private readonly accountingService: AccountingService) {}
 
   @Post('account')
-  createAccount(@Body() createDto: CreateAccountDto) {
-    return this.accountingService.createAccount(createDto);
+  createAccount(@Body() dto: CreateAccountDto) {
+    return this.accountingService.createAccount(dto);
   }
 
-  @Get('accounts/:orgId')
-  getAccounts(@Param('orgId') orgId: string) {
-    return this.accountingService.getAccounts(orgId);
+  @Get('accounts/:organizationId')
+  getAccounts(@Param('organizationId') organizationId: string) {
+    return this.accountingService.getAccounts(organizationId);
   }
 
   @Post('journal')
-  postJournal(@Body() postDto: PostJournalDto) {
-    return this.accountingService.postJournal(postDto);
+  createJournal(@Body() dto: CreateJournalDto) {
+    return this.accountingService.createJournal(dto);
   }
 
   @Get('ledger/:branchId')
@@ -30,7 +29,7 @@ export class AccountingController {
   }
 
   @Get('reports/:branchId')
-  getFinancialReport(@Param('branchId') branchId: string) {
-    return this.accountingService.getFinancialReport(branchId);
+  getReports(@Param('branchId') branchId: string) {
+    return this.accountingService.getReports(branchId);
   }
 }

@@ -1,85 +1,127 @@
 // api/src/debtors/debtors.service.ts
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateCustomerDto, CreateInvoiceDto, CreatePaymentDto } from './dto/debtors.dto';
+import { CreateCustomerDto, UpdateCustomerDto, CreateInvoiceDto, RecordPaymentDto } from './dto/debtors.dto';
 
 @Injectable()
 export class DebtorsService {
   constructor(private prisma: PrismaService) {}
 
-  async createCustomer(createDto: CreateCustomerDto) {
-    return this.prisma.customer.create({ data: createDto });
-  }
-
   async getCustomers(organizationId: string) {
-    // Fetch customers along with their financial history
     return this.prisma.customer.findMany({
       where: { organizationId },
-      include: {
-        invoices: true,
-        payments: true
+      include: { 
+        invoices: { orderBy: { createdAt: 'desc' } }, 
+        payments: { orderBy: { createdAt: 'desc' } } 
       },
       orderBy: { name: 'asc' }
     });
   }
 
-  async issueInvoice(createDto: CreateInvoiceDto) {
-    const invoiceNum = `INV-${Math.floor(100000 + Math.random() * 900000)}`;
+  async createCustomer(dto: CreateCustomerDto) {
+    return this.prisma.customer.create({ data: dto });
+  }
+
+  async updateCustomer(id: string, dto: UpdateCustomerDto) {
+    return this.prisma.customer.update({ where: { id }, data: dto });
+  }
+
+  async deleteCustomer(id: string) {
+    return this.prisma.customer.delete({ where: { id } });
+  }
+
+  async createInvoice(dto: CreateInvoiceDto) {
+    const totalAmount = dto.items.reduce((sum, item) => sum + (item.quantity * item.price), 0);
     
-    return this.prisma.invoice.create({
+    if (totalAmount <= 0) throw new BadRequestException("Invoice amount must be greater than zero.");
+
+    const invoiceNum = `INV-${Date.now().toString().slice(-6)}`;
+    
+    // Execute as an Atomic Transaction: Create Invoice AND Deduct Stock simultaneously
+    return this.prisma.$transaction(async (prisma) => {
+      // 1. Create the official invoice
+      const invoice = await prisma.invoice.create({
+        data: {
+          invoiceNum,
+          amount: totalAmount,
+          balance: totalAmount,
+          status: 'UNPAID',
+          customerId: dto.customerId,
+          branchId: dto.branchId,
+        }
+      });
+
+      // 2. Loop through billed items and deduct from Branch Inventory
+      for (const item of dto.items) {
+        const inventoryRecord = await prisma.inventory.findUnique({
+          where: {
+            itemId_branchId: {
+              itemId: item.itemId,
+              branchId: dto.branchId
+            }
+          }
+        });
+
+        if (inventoryRecord) {
+          // Deduct from existing stock
+          await prisma.inventory.update({
+            where: { id: inventoryRecord.id },
+            data: { quantity: { decrement: item.quantity } }
+          });
+        } else {
+          // Ghost Shield: If item was never officially stocked but is being billed, 
+          // create a negative stock entry to maintain strict mathematical tracking.
+          await prisma.inventory.create({
+            data: {
+              itemId: item.itemId,
+              branchId: dto.branchId,
+              quantity: -item.quantity 
+            }
+          });
+        }
+      }
+
+      return invoice;
+    });
+  }
+
+  async deleteInvoice(id: string) {
+    return this.prisma.invoice.delete({ where: { id } });
+  }
+
+  async recordPayment(dto: RecordPaymentDto) {
+    const invoices = await this.prisma.invoice.findMany({
+      where: { customerId: dto.customerId, balance: { gt: 0 } },
+      orderBy: { createdAt: 'asc' } 
+    });
+
+    let remainingPayment = dto.amount;
+
+    for (const inv of invoices) {
+      if (remainingPayment <= 0) break;
+      const amountToApply = Math.min(inv.balance, remainingPayment);
+      remainingPayment -= amountToApply;
+      const newBalance = inv.balance - amountToApply;
+      
+      await this.prisma.invoice.update({
+        where: { id: inv.id },
+        data: { balance: newBalance, status: newBalance <= 0 ? 'PAID' : 'PARTIAL' }
+      });
+    }
+
+    const receiptNum = `RCPT-${Date.now().toString().slice(-6)}`;
+    return this.prisma.payment.create({
       data: {
-        invoiceNum,
-        amount: createDto.amount,
-        balance: createDto.amount,
-        customerId: createDto.customerId,
-        branchId: createDto.branchId,
+        receiptNum,
+        amount: dto.amount,
+        method: dto.method,
+        customerId: dto.customerId,
+        branchId: dto.branchId,
       }
     });
   }
 
-  async recordPayment(createDto: CreatePaymentDto) {
-    const receiptNum = `PAY-${Math.floor(100000 + Math.random() * 900000)}`;
-
-    return this.prisma.$transaction(async (prisma) => {
-      // 1. Log the payment
-      const payment = await prisma.payment.create({
-        data: {
-          receiptNum,
-          amount: createDto.amount,
-          method: createDto.method,
-          customerId: createDto.customerId,
-          branchId: createDto.branchId,
-        }
-      });
-
-      // 2. Fetch all unpaid or partially paid invoices for this customer, oldest first
-      const openInvoices = await prisma.invoice.findMany({
-        where: { 
-          customerId: createDto.customerId, 
-          status: { not: 'PAID' } 
-        },
-        orderBy: { createdAt: 'asc' }
-      });
-
-      let remainingPayment = createDto.amount;
-
-      // 3. Waterfall: Apply the payment to invoices until the payment is exhausted
-      for (const invoice of openInvoices) {
-        if (remainingPayment <= 0) break;
-
-        const amountToApply = Math.min(invoice.balance, remainingPayment);
-        remainingPayment -= amountToApply;
-        
-        const newBalance = invoice.balance - amountToApply;
-        const newStatus = newBalance === 0 ? 'PAID' : 'PARTIAL';
-
-        await prisma.invoice.update({
-          where: { id: invoice.id },
-          data: { balance: newBalance, status: newStatus }
-        });
-      }
-
-      return payment;
-    });
+  async deletePayment(id: string) {
+    return this.prisma.payment.delete({ where: { id } });
   }
 }

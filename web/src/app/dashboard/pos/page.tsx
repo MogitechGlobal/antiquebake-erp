@@ -73,6 +73,7 @@ export default function POSDashboardPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
   const [customerName, setCustomerName] = useState("Walk-In");
+  const [isMobileCartOpen, setIsMobileCartOpen] = useState(false); // Mobile UI Toggle
   
   // Modals
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -91,7 +92,13 @@ export default function POSDashboardPage() {
     try {
       if (!silent) setIsLoading(true);
       const res = await axios.get(`${API_URL}/api/v1/inventory/stock/${user.branchId}`, axiosConfig);
-      const availableStock = res.data.filter((s: StockItem) => s.quantity > 0);
+      
+      // STRICT FILTER: Only show items in stock that are FINISHED GOODS
+      const availableStock = res.data.filter((s: StockItem) => {
+        const isFinishedGood = s.item.category?.replace('_', ' ').toUpperCase() === 'FINISHED GOOD';
+        return s.quantity > 0 && isFinishedGood;
+      });
+      
       setStock(availableStock);
     } catch (err) {
       console.error("Failed to load POS stock data", err);
@@ -156,6 +163,7 @@ export default function POSDashboardPage() {
     setCart([]);
     setCustomerName("Walk-In");
     setActiveTab('ACTIVE_ORDERS');
+    setIsMobileCartOpen(false); // Return to menu on mobile
   };
 
   const resumeOrder = (orderId: string) => {
@@ -168,6 +176,7 @@ export default function POSDashboardPage() {
       setCustomerName(order.customerName);
       setParkedOrders(parkedOrders.filter(o => o.id !== orderId));
       setActiveTab('REGISTER');
+      setIsMobileCartOpen(true); // Automatically open cart on mobile to review resumed order
     }
   };
 
@@ -213,6 +222,7 @@ export default function POSDashboardPage() {
       setIsPaymentModalOpen(false);
       setCart([]);
       setCustomerName("Walk-In");
+      setIsMobileCartOpen(false); // Return to menu on mobile
       
       // Pass 'true' to fetchStockData to refresh silently
       fetchStockData(true); 
@@ -246,13 +256,28 @@ export default function POSDashboardPage() {
   }
 
   return (
-    <div className="h-[calc(100vh-8rem)] flex flex-col lg:flex-row gap-6 print:m-0 print:h-auto print:gap-0">
+    <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 h-[calc(100dvh-6rem)] lg:h-[calc(100vh-8rem)] print:m-0 print:h-auto print:gap-0">
       
+      {/* --- MOBILE TOGGLE HEADER --- */}
+      <div className="lg:hidden flex items-center justify-between bg-white p-3 rounded-2xl border border-zinc-200 shadow-sm flex-shrink-0">
+        <h2 className="font-extrabold text-zinc-900 ml-2 tracking-tight">Smart POS</h2>
+        <button 
+          onClick={() => setIsMobileCartOpen(!isMobileCartOpen)}
+          className="px-4 py-2 bg-zinc-900 text-white text-sm font-bold rounded-xl flex items-center shadow-md active:scale-95 transition-all"
+        >
+          {isMobileCartOpen ? (
+            "Back to Menu"
+          ) : (
+            <><ShoppingBag className="w-4 h-4 mr-2" /> View Cart ({cart.length})</>
+          )}
+        </button>
+      </div>
+
       {/* LEFT PANEL: Library & Tabs */}
-      <div className="flex-1 flex flex-col bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden h-full print:hidden">
+      <div className={`${isMobileCartOpen ? 'hidden lg:flex' : 'flex'} flex-1 flex-col bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden h-full print:hidden`}>
         
         {/* Header & Tabs */}
-        <div className="bg-zinc-900 pt-4">
+        <div className="bg-zinc-900 pt-4 flex-shrink-0">
           <div className="px-4 pb-4 flex items-center justify-between">
              <div className="relative w-full max-w-md">
                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
@@ -279,18 +304,20 @@ export default function POSDashboardPage() {
         {/* View Panels */}
         {activeTab === 'REGISTER' ? (
           <div className="flex-1 flex flex-col overflow-hidden">
-            {/* Category Pills */}
-            <div className="flex overflow-x-auto gap-2 p-3 bg-white border-b border-zinc-100 custom-scrollbar flex-shrink-0">
-              {categories.map(cat => (
-                <button 
-                  key={cat} 
-                  onClick={() => setActiveCategory(cat)}
-                  className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors border ${activeCategory === cat ? 'bg-bakery-gold/10 text-bakery-brown border-bakery-gold/30' : 'bg-zinc-50 text-zinc-600 border-zinc-200 hover:bg-zinc-100'}`}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
+            {/* Category Pills (Only displays if multiple categories exist within FINISHED GOODS) */}
+            {categories.length > 2 && (
+              <div className="flex overflow-x-auto gap-2 p-3 bg-white border-b border-zinc-100 custom-scrollbar flex-shrink-0">
+                {categories.map(cat => (
+                  <button 
+                    key={cat} 
+                    onClick={() => setActiveCategory(cat)}
+                    className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors border ${activeCategory === cat ? 'bg-bakery-gold/10 text-bakery-brown border-bakery-gold/30' : 'bg-zinc-50 text-zinc-600 border-zinc-200 hover:bg-zinc-100'}`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            )}
             
             {/* Product Grid */}
             <div className="flex-1 overflow-y-auto p-4 bg-zinc-50/50">
@@ -298,7 +325,7 @@ export default function POSDashboardPage() {
                 {filteredStock.length === 0 ? (
                   <div className="col-span-full py-12 text-center text-zinc-400">
                     <Package className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                    <p className="font-medium">No items found.</p>
+                    <p className="font-medium">No finished goods found in stock.</p>
                   </div>
                 ) : (
                   filteredStock.map((stockItem) => {
@@ -366,10 +393,10 @@ export default function POSDashboardPage() {
       </div>
 
       {/* RIGHT PANEL: Current Ticket (Cart) */}
-      <div className="w-full lg:w-[400px] flex flex-col bg-white rounded-2xl border border-zinc-200 shadow-xl overflow-hidden h-full flex-shrink-0 z-10 print:hidden">
+      <div className={`${isMobileCartOpen ? 'flex' : 'hidden lg:flex'} w-full lg:w-[400px] flex-col bg-white rounded-2xl border border-zinc-200 shadow-xl overflow-hidden h-full flex-shrink-0 z-10 print:hidden`}>
         
         {/* Ticket Header */}
-        <div className="p-4 border-b border-zinc-200 bg-red-50/50 flex flex-col gap-3">
+        <div className="p-4 border-b border-zinc-200 bg-red-50/50 flex flex-col gap-3 flex-shrink-0">
           <div className="flex justify-between items-center">
             <h2 className="text-lg font-bold text-zinc-900">Current Order</h2>
             <button onClick={clearCart} className="text-xs font-bold text-red-500 hover:text-red-700 border border-red-200 bg-white px-2 py-1 rounded shadow-sm transition-colors">
@@ -422,7 +449,7 @@ export default function POSDashboardPage() {
         </div>
 
         {/* Checkout Summary & Action Buttons */}
-        <div className="border-t border-zinc-200 bg-white">
+        <div className="border-t border-zinc-200 bg-white flex-shrink-0">
           <div className="p-4 bg-zinc-100 border-b border-zinc-200 flex justify-between items-end">
             <span className="text-sm font-bold text-zinc-600 uppercase tracking-wider">Total</span>
             <span className="text-3xl font-extrabold text-zinc-900 tracking-tighter">

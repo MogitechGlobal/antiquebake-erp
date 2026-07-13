@@ -1,27 +1,23 @@
 // api/src/accounting/dto/accounting.dto.ts
-import { IsString, IsNotEmpty, IsNumber, IsArray, ValidateNested, Min, IsEnum } from 'class-validator';
+import { IsString, IsNumber, IsArray, ValidateNested, IsOptional, IsDateString, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateAccountDto {
   @IsString()
-  @IsNotEmpty()
   code!: string;
 
   @IsString()
-  @IsNotEmpty()
   name!: string;
 
-  @IsEnum(['ASSET', 'LIABILITY', 'EQUITY', 'REVENUE', 'EXPENSE'])
+  @IsString()
   type!: string;
 
   @IsString()
-  @IsNotEmpty()
   organizationId!: string;
 }
 
-class JournalLineDto {
+export class JournalEntryDto {
   @IsString()
-  @IsNotEmpty()
   accountId!: string;
 
   @IsNumber()
@@ -33,17 +29,19 @@ class JournalLineDto {
   credit!: number;
 }
 
-export class PostJournalDto {
+export class CreateJournalDto {
   @IsString()
-  @IsNotEmpty()
   branchId!: string;
 
   @IsString()
-  @IsNotEmpty()
   description!: string;
+
+  @IsDateString()
+  @IsOptional()
+  entryDate?: string; // Optional, so we use '?' instead of '!'
 
   @IsArray()
   @ValidateNested({ each: true })
-  @Type(() => JournalLineDto)
-  entries!: JournalLineDto[];
+  @Type(() => JournalEntryDto)
+  entries!: JournalEntryDto[];
 }
