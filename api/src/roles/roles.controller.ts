@@ -3,10 +3,10 @@ import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@n
 import { RolesService } from './roles.service';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard'; // Adjust path to your JWT guard
+import { JwtAuthGuard } from '../auth/jwt-auth.guard'; 
 
-@UseGuards(JwtAuthGuard) // Secures all endpoints in this controller
-@Controller('api/v1/roles')
+@UseGuards(JwtAuthGuard) 
+@Controller('roles')
 export class RolesController {
   constructor(private readonly rolesService: RolesService) {}
 

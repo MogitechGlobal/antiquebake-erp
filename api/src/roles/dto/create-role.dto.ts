@@ -8,5 +8,9 @@ export class CreateRoleDto {
 
   @IsString()
   @IsOptional()
+  department?: string;
+
+  @IsString()
+  @IsOptional()
   description?: string;
 }

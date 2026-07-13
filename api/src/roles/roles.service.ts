@@ -25,7 +25,10 @@ export class RolesService {
 
   async findAll() {
     return this.prisma.role.findMany({
-      orderBy: { name: 'asc' },
+      orderBy: [
+        { department: 'asc' },
+        { name: 'asc' }
+      ],
     });
   }
 
