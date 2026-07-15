@@ -5,13 +5,13 @@ import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useAuthStore } from "@/lib/store/authStore";
-import { 
-  LayoutDashboard, 
-  Factory, 
-  PackageSearch, 
-  ShoppingCart, 
-  Users, 
-  LogOut, 
+import {
+  LayoutDashboard,
+  Factory,
+  PackageSearch,
+  ShoppingCart,
+  Users,
+  LogOut,
   Wheat,
   Settings,
   Menu,
@@ -22,6 +22,7 @@ import {
   Truck,
   FileText
 } from "lucide-react";
+import { report } from "process";
 
 // --- 1. DEFINE ROLE-BASED ACCESS GROUPS ---
 const ADMINS = ["Super Admin", "Admin"];
@@ -46,7 +47,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter();
   const pathname = usePathname();
   const { user, token, logout } = useAuthStore(); // Extracts user and authentication token[cite: 4]
-  
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [openDropdowns, setOpenDropdowns] = useState<Record<string, boolean>>({});
@@ -72,8 +73,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       allowedRoles: MANAGERS,
       subItems: [
         { name: "General Ledger (GL)", href: "/dashboard/accounting/ledger", allowedRoles: ADMINS },
+        { name: "Revenue Analytics", href: "/dashboard/accounting/reports", allowedRoles: MANAGERS },
+        { name: "Cash Flow", href: "/dashboard/accounting/cashflow", allowedRoles: MANAGERS },
+        { name: "Tax Report", href: "/dashboard/accounting/tax", allowedRoles: MANAGERS },
+        { name: "Payment Records", href: "/dashboard/accounting/payments", allowedRoles: MANAGERS },
         { name: "Debtors", href: "/dashboard/accounting/debtors", allowedRoles: MANAGERS },
-        { name: "Revenue Analytics", href: "/dashboard/accounting/reports", allowedRoles: MANAGERS }
+        { name: "Creditors", href: "/dashboard/accounting/creditors", allowedRoles: MANAGERS },
+        //{ name: "Accounts Receivable", href: "/dashboard/accounting/receivables", allowedRoles: MANAGERS },
+        //{ name: "Accounts Payable", href: "/dashboard/accounting/payables", allowedRoles: MANAGERS },
+        //{ name: "General Journal", href: "/dashboard/accounting/journal", allowedRoles: MANAGERS }
       ]
     },
 
@@ -167,20 +175,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="min-h-screen bg-zinc-50 flex">
-      
+
       {/* Mobile Overlay Background[cite: 4] */}
       {isSidebarOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/60 z-40 lg:hidden backdrop-blur-sm transition-opacity"
           onClick={() => setIsSidebarOpen(false)}
         />
       )}
 
       {/* Sidebar - Off-canvas on mobile, fixed/static on desktop[cite: 4] */}
-      <aside 
-        className={`fixed inset-y-0 left-0 z-50 w-64 bg-zinc-950 text-zinc-300 transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:flex-shrink-0 flex flex-col ${
-          isSidebarOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-64 bg-zinc-950 text-zinc-300 transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:flex-shrink-0 flex flex-col ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
       >
         <div className="h-16 flex items-center justify-between px-6 border-b border-zinc-800 bg-zinc-950 flex-shrink-0">
           <div className="flex items-center">
@@ -188,14 +195,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <span className="text-lg font-bold text-white tracking-widest uppercase">Antique<span className="text-bakery-gold">Bake</span></span>
           </div>
           {/* Mobile Close Button[cite: 4] */}
-          <button 
-            onClick={() => setIsSidebarOpen(false)} 
+          <button
+            onClick={() => setIsSidebarOpen(false)}
             className="lg:hidden text-zinc-400 hover:text-white transition-colors"
           >
             <X className="w-6 h-6" />
           </button>
         </div>
-        
+
         <nav className="flex-1 overflow-y-auto p-4 space-y-1 custom-scrollbar">
           {/* Use the dynamically filtered array instead of raw navItems */}
           {authorizedNavItems.map((item, index) => {
@@ -212,16 +219,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             if (item.subItems) {
               const isOpen = openDropdowns[item.name as string];
               const isChildActive = item.subItems.some(sub => pathname.startsWith(sub.href));
-              
+
               return (
                 <div key={item.name} className="space-y-1">
-                  <button 
+                  <button
                     onClick={() => toggleDropdown(item.name as string)}
-                    className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all ${
-                      isChildActive && !isOpen
-                        ? "bg-bakery-gold/10 text-bakery-gold" 
-                        : "hover:bg-zinc-900 hover:text-white"
-                    }`}
+                    className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all ${isChildActive && !isOpen
+                      ? "bg-bakery-gold/10 text-bakery-gold"
+                      : "hover:bg-zinc-900 hover:text-white"
+                      }`}
                   >
                     <div className="flex items-center">
                       {item.icon && <item.icon className={`w-5 h-5 mr-3 ${isChildActive ? 'text-bakery-gold' : 'text-zinc-400'}`} />}
@@ -229,21 +235,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     </div>
                     {isOpen ? <ChevronDown className="w-4 h-4 text-zinc-500" /> : <ChevronRight className="w-4 h-4 text-zinc-500" />}
                   </button>
-                  
+
                   {isOpen && (
                     <div className="pl-11 pr-2 space-y-1 mt-1">
                       {item.subItems.map((sub) => {
                         const isSubActive = pathname === sub.href;
                         return (
-                          <Link 
-                            key={sub.name} 
+                          <Link
+                            key={sub.name}
                             href={sub.href}
                             onClick={() => setIsSidebarOpen(false)}
-                            className={`block px-3 py-2 rounded-lg text-sm transition-all ${
-                              isSubActive 
-                                ? "bg-bakery-gold/20 text-bakery-gold font-bold border border-bakery-gold/30" 
-                                : "text-zinc-400 hover:text-white hover:bg-zinc-900"
-                            }`}
+                            className={`block px-3 py-2 rounded-lg text-sm transition-all ${isSubActive
+                              ? "bg-bakery-gold/20 text-bakery-gold font-bold border border-bakery-gold/30"
+                              : "text-zinc-400 hover:text-white hover:bg-zinc-900"
+                              }`}
                           >
                             {sub.name}
                           </Link>
@@ -260,11 +265,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             return (
               <Link key={item.name} href={item.href as string}
                 onClick={() => setIsSidebarOpen(false)}
-                className={`flex items-center px-4 py-2.5 rounded-xl transition-all ${
-                  isActive 
-                    ? "bg-bakery-gold/20 text-bakery-gold border border-bakery-gold/30" 
-                    : "hover:bg-zinc-900 hover:text-white"
-                }`}
+                className={`flex items-center px-4 py-2.5 rounded-xl transition-all ${isActive
+                  ? "bg-bakery-gold/20 text-bakery-gold border border-bakery-gold/30"
+                  : "hover:bg-zinc-900 hover:text-white"
+                  }`}
               >
                 {item.icon && <item.icon className={`w-5 h-5 mr-3 ${isActive ? 'text-bakery-gold' : 'text-zinc-400'}`} />}
                 <span className="font-medium text-sm">{item.name}</span>
@@ -279,8 +283,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {/* Topbar[cite: 4] */}
         <header className="h-16 bg-white border-b border-zinc-200 flex items-center justify-between px-6 shadow-sm sticky top-0 z-30 flex-shrink-0">
           <div className="flex items-center">
-            <button 
-              onClick={() => setIsSidebarOpen(true)} 
+            <button
+              onClick={() => setIsSidebarOpen(true)}
               className="lg:hidden p-2 mr-4 text-zinc-500 hover:text-zinc-900 rounded-md transition-colors"
             >
               <Menu className="w-6 h-6" />
@@ -289,7 +293,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               {pathname.split("/").pop() || "Dashboard"}
             </h1>
           </div>
-          
+
           <div className="flex items-center space-x-3 sm:space-x-4">
             <div className="hidden sm:flex flex-col text-right mr-2">
               {/* Display user firstName, lastName, role, and branchName in the header[cite: 4] */}

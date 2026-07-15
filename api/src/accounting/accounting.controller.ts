@@ -1,35 +1,34 @@
-// api/src/accounting/accounting.controller.ts
-import { Controller, Get, Post, Body, Param } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards, Request } from '@nestjs/common';
 import { AccountingService } from './accounting.service';
-import { CreateAccountDto, CreateJournalDto } from './dto/accounting.dto';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard'; // Adjust path if needed
 
-// Strip down the route to eliminate collision with global 'api/v1' filters
-@Controller('accounting') 
+@UseGuards(JwtAuthGuard)
+@Controller('accounting') // Remember: no 'api/v1' here due to your global prefix
 export class AccountingController {
   constructor(private readonly accountingService: AccountingService) {}
 
-  @Post('account')
-  createAccount(@Body() dto: CreateAccountDto) {
-    return this.accountingService.createAccount(dto);
+  @Post('ledger/legacy-format')
+  createLegacyEntry(@Body() data: any, @Request() req: any) { // <-- Add ": any" here
+    return this.accountingService.createLegacyEntry(data, req.user);
   }
 
-  @Get('accounts/:organizationId')
-  getAccounts(@Param('organizationId') organizationId: string) {
-    return this.accountingService.getAccounts(organizationId);
+  @Get('ledger/legacy-format')
+  getLegacyLedger(@Query() query: any, @Request() req: any) { // <-- Add ": any" here
+    return this.accountingService.getLegacyLedger(query, req.user);
   }
 
-  @Post('journal')
-  createJournal(@Body() dto: CreateJournalDto) {
-    return this.accountingService.createJournal(dto);
+  @Patch('ledger/legacy-format/:id')
+  updateLegacyEntry(@Param('id') id: string, @Body() data: any) {
+    return this.accountingService.updateLegacyEntry(id, data);
   }
 
-  @Get('ledger/:branchId')
-  getLedger(@Param('branchId') branchId: string) {
-    return this.accountingService.getLedger(branchId);
+  @Delete('ledger/legacy-format/:id')
+  deleteLegacyEntry(@Param('id') id: string) {
+    return this.accountingService.deleteLegacyEntry(id);
   }
 
-  @Get('reports/:branchId')
-  getReports(@Param('branchId') branchId: string) {
-    return this.accountingService.getReports(branchId);
+  @Post('sync')
+  syncSystem() {
+    return this.accountingService.syncSystem();
   }
 }
