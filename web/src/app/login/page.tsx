@@ -52,7 +52,34 @@ export default function LoginPage() {
       
       setAuth(access_token, user);
       localStorage.setItem("erp_token", access_token);
-      router.push("/dashboard");
+
+      // --- ROLE-BASED DYNAMIC REDIRECTION ---
+      const role = user.role;
+      let redirectPath = "/dashboard/profile"; // Universal safe fallback
+
+      const EXECUTIVE_ROLES = ["Super Admin", "Admin", "Branch Manager", "Accountant"];
+      const POS_ROLES = ["Cashier", "Sales Personel"];
+      const INVENTORY_ROLES = ["Inventory Clerk"];
+      const KITCHEN_ROLES = [
+        "Baker", 
+        "Baker - Oven Handler", 
+        "Baker/Mixer Machine Handler", 
+        "Cook - Frier Machiner Handler", 
+        "Team Builder - Position Replacer"
+      ];
+
+      if (EXECUTIVE_ROLES.includes(role)) {
+        redirectPath = "/dashboard"; // Command Center
+      } else if (POS_ROLES.includes(role)) {
+        redirectPath = "/dashboard/pos"; // Point of Sale
+      } else if (INVENTORY_ROLES.includes(role)) {
+        redirectPath = "/dashboard/inventory"; // Inventory Management
+      } else if (KITCHEN_ROLES.includes(role)) {
+        redirectPath = "/dashboard/production"; // Production Floor
+      }
+      
+      router.push(redirectPath);
+
     } catch (err: any) {
       setError(err.response?.data?.message || "An error occurred during secure login.");
     }
@@ -61,9 +88,8 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen w-full bg-stone-50">
       
-      {/* LEFT PANEL: Premium Branding (Hidden on smaller screens) */}
+      {/* LEFT PANEL: Premium Branding */}
       <div className="hidden lg:flex w-1/2 flex-col justify-between bg-gradient-to-br from-bakery-chocolate via-[#4A2500] to-bakery-brown p-12 text-bakery-cream relative overflow-hidden">
-        {/* Subtle background pattern overlay */}
         <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-bakery-gold via-transparent to-transparent pointer-events-none"></div>
         
         <div className="relative z-10 flex items-center space-x-3">
@@ -96,10 +122,9 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* RIGHT PANEL: Login Form (Full width on mobile, half on desktop) */}
+      {/* RIGHT PANEL: Login Form */}
       <div className="flex w-full lg:w-1/2 items-center justify-center p-6 sm:p-12 relative">
         
-        {/* Back to Home Button */}
         <div className="absolute top-6 left-6 sm:left-12">
           <Link 
             href="/" 
@@ -113,7 +138,6 @@ export default function LoginPage() {
         <div className="w-full max-w-md space-y-8 bg-white p-8 sm:p-10 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-stone-100 mt-8 sm:mt-0">
           
           <div className="space-y-3 text-center lg:text-left">
-            {/* Mobile Logo */}
             <div className="flex lg:hidden justify-center mb-6">
               <div className="relative w-20 h-14">
                 <Image 

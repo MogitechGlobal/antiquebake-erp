@@ -11,6 +11,7 @@ import { ProcurementModule } from './procurement/procurement.module';
 import { AccountingModule } from './accounting/accounting.module';
 import { DebtorsModule } from './debtors/debtors.module';
 import { RolesModule } from './roles/roles.module';
+import { ProfileModule } from './profile/profile.module';
 
 @Module({
   imports: [
@@ -24,7 +25,8 @@ import { RolesModule } from './roles/roles.module';
     ProcurementModule,
     AccountingModule,
     DebtorsModule,
-    RolesModule
+    RolesModule,
+    ProfileModule
   ],
   controllers: [], 
   providers: [],

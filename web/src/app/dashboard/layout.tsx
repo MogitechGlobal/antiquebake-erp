@@ -1,9 +1,9 @@
-// web/src/app/dashboard/layout.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { useAuthStore } from "@/lib/store/authStore";
 import {
   LayoutDashboard,
@@ -12,7 +12,6 @@ import {
   ShoppingCart,
   Users,
   LogOut,
-  Wheat,
   Settings,
   Menu,
   X,
@@ -20,17 +19,26 @@ import {
   ChevronRight,
   Landmark,
   Truck,
-  FileText
+  FileText,
+  UserCircle,
+  Lock
 } from "lucide-react";
-import { report } from "process";
 
 // --- 1. DEFINE ROLE-BASED ACCESS GROUPS ---
 const ADMINS = ["Super Admin", "Admin"];
-const MANAGERS = [...ADMINS, "Branch Manager"];
+const MANAGERS = [...ADMINS, "Branch Manager", "Accountant"];
 const POS_STAFF = [...MANAGERS, "Cashier", "Sales Personel"];
 const INVENTORY_STAFF = [...MANAGERS, "Inventory Clerk"];
-const KITCHEN_STAFF = [...MANAGERS, "Baker - Oven Handler", "Baker/Mixer Machine Handler", "Cook - Frier Machiner Handler", "Team Builder - Position Replacer"];
-// Public Attendant is restricted to the basic dashboard unless specified otherwise
+const KITCHEN_STAFF = [
+  ...MANAGERS, 
+  "Baker", 
+  "Baker - Oven Handler", 
+  "Baker/Mixer Machine Handler", 
+  "Cook - Frier Machiner Handler", 
+  "Team Builder - Position Replacer"
+];
+
+// Public Attendant is restricted from most modules
 const ALL_STAFF = [...POS_STAFF, ...INVENTORY_STAFF, ...KITCHEN_STAFF, "Public Attendant"];
 
 type SubItem = { name: string; href: string; allowedRoles?: string[] };
@@ -46,16 +54,20 @@ type NavItem = {
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, token, logout } = useAuthStore(); // Extracts user and authentication token[cite: 4]
+  const { user, token, logout } = useAuthStore();
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [openDropdowns, setOpenDropdowns] = useState<Record<string, boolean>>({});
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  
+  const profileRef = useRef<HTMLDivElement>(null);
 
   // Enterprise Menu Configuration with RBAC Permissions assigned to specific roles
   const navItems: NavItem[] = [
-    { header: "COMMAND CENTER", allowedRoles: ALL_STAFF },
-    { name: "Executive Dashboard", href: "/dashboard", icon: LayoutDashboard, allowedRoles: ALL_STAFF },
+    // Restrict the Executive Dashboard to Managers and Admins only
+    { header: "COMMAND CENTER", allowedRoles: MANAGERS },
+    { name: "Executive Dashboard", href: "/dashboard", icon: LayoutDashboard, allowedRoles: MANAGERS },
 
     { header: "COMMERCE & SALES", allowedRoles: POS_STAFF },
     { name: "Smart POS", href: "/dashboard/pos", icon: ShoppingCart, allowedRoles: POS_STAFF },
@@ -78,10 +90,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         { name: "Tax Report", href: "/dashboard/accounting/tax", allowedRoles: MANAGERS },
         { name: "Payment Records", href: "/dashboard/accounting/payments", allowedRoles: MANAGERS },
         { name: "Debtors", href: "/dashboard/accounting/debtors", allowedRoles: MANAGERS },
-        { name: "Creditors", href: "/dashboard/accounting/creditors", allowedRoles: MANAGERS },
-        //{ name: "Accounts Receivable", href: "/dashboard/accounting/receivables", allowedRoles: MANAGERS },
-        //{ name: "Accounts Payable", href: "/dashboard/accounting/payables", allowedRoles: MANAGERS },
-        //{ name: "General Journal", href: "/dashboard/accounting/journal", allowedRoles: MANAGERS }
+        { name: "Creditors", href: "/dashboard/accounting/creditors", allowedRoles: MANAGERS }
       ]
     },
 
@@ -101,25 +110,32 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: "Settings & Config", href: "/dashboard/settings", icon: Settings, allowedRoles: ADMINS },
   ];
 
-  // Component mount check
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
+        setIsProfileOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   // --- 2. ROUTE & AUTHENTICATION GUARD ---
   useEffect(() => {
-    // 1. Kick out unauthenticated users
     if (isMounted && !token) {
       router.push("/login");
       return;
     }
 
-    // 2. Protect routes from unauthorized roles
     if (isMounted && user?.role) {
       let requiredRoles: string[] | undefined = [];
       let isProtectedPath = false;
 
-      // Scan our configuration to find the current route's permission requirements
+      // Scan configuration to find the current route's permission requirements
       for (const item of navItems) {
         if (item.href === pathname) {
           requiredRoles = item.allowedRoles;
@@ -136,9 +152,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         }
       }
 
-      // If route is restricted and user role is not in the allowed list, boot them back to the main dashboard
+      // If route is restricted and user role is not allowed, boot them to the profile settings
       if (isProtectedPath && requiredRoles && !requiredRoles.includes(user.role)) {
-        router.push("/dashboard");
+        router.push("/dashboard/profile");
       }
     }
   }, [isMounted, token, router, pathname, user]);
@@ -154,14 +170,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (!isMounted || !token || !user) return null;
 
-  // --- 3. FILTER SIDEBAR NAVIGATION based on permissions ---
+  // --- 3. FILTER SIDEBAR NAVIGATION ---
   const authorizedNavItems = navItems.reduce<NavItem[]>((acc, item) => {
-    // Skip item if user doesn't have required role
     if (item.allowedRoles && !item.allowedRoles.includes(user.role)) {
       return acc;
     }
 
-    // Process nested dropdowns safely
     if (item.subItems) {
       const filteredSubItems = item.subItems.filter(sub => !sub.allowedRoles || sub.allowedRoles.includes(user.role));
       if (filteredSubItems.length > 0) {
@@ -176,7 +190,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div className="min-h-screen bg-zinc-50 flex">
 
-      {/* Mobile Overlay Background[cite: 4] */}
+      {/* Mobile Overlay Background */}
       {isSidebarOpen && (
         <div
           className="fixed inset-0 bg-black/60 z-40 lg:hidden backdrop-blur-sm transition-opacity"
@@ -184,17 +198,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         />
       )}
 
-      {/* Sidebar - Off-canvas on mobile, fixed/static on desktop[cite: 4] */}
+      {/* Sidebar - Off-canvas on mobile, fixed/static on desktop */}
       <aside
         className={`fixed inset-y-0 left-0 z-50 w-64 bg-zinc-950 text-zinc-300 transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:flex-shrink-0 flex flex-col ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"
           }`}
       >
         <div className="h-16 flex items-center justify-between px-6 border-b border-zinc-800 bg-zinc-950 flex-shrink-0">
-          <div className="flex items-center">
-            <Wheat className="w-6 h-6 text-bakery-gold mr-3" />
-            <span className="text-lg font-bold text-white tracking-widest uppercase">Antique<span className="text-bakery-gold">Bake</span></span>
-          </div>
-          {/* Mobile Close Button[cite: 4] */}
+          
+          <Link href="/dashboard/profile" className="flex items-center space-x-3">
+            <div className="relative w-8 h-8 flex-shrink-0 bg-bakery-gold/20 rounded p-1">
+              <Image 
+                src="/web-app-manifest-512x512.png" 
+                alt="Antique Oven Logo" 
+                fill 
+                className="object-contain"
+              />
+            </div>
+            <span className="text-lg font-black text-white tracking-widest uppercase">Antique<span className="text-bakery-gold">Oven</span></span>
+          </Link>
+
           <button
             onClick={() => setIsSidebarOpen(false)}
             className="lg:hidden text-zinc-400 hover:text-white transition-colors"
@@ -204,9 +226,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
 
         <nav className="flex-1 overflow-y-auto p-4 space-y-1 custom-scrollbar">
-          {/* Use the dynamically filtered array instead of raw navItems */}
           {authorizedNavItems.map((item, index) => {
-            // Render Headers[cite: 4]
             if (item.header) {
               return (
                 <div key={`header-${index}`} className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider mt-6 mb-2 px-4">
@@ -215,7 +235,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               );
             }
 
-            // Render Dropdowns[cite: 4]
             if (item.subItems) {
               const isOpen = openDropdowns[item.name as string];
               const isChildActive = item.subItems.some(sub => pathname.startsWith(sub.href));
@@ -260,7 +279,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               );
             }
 
-            // Render Standard Links[cite: 4]
             const isActive = pathname === item.href;
             return (
               <Link key={item.name} href={item.href as string}
@@ -278,9 +296,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </nav>
       </aside>
 
-      {/* Main Content Area[cite: 4] */}
+      {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Topbar[cite: 4] */}
+        
         <header className="h-16 bg-white border-b border-zinc-200 flex items-center justify-between px-6 shadow-sm sticky top-0 z-30 flex-shrink-0">
           <div className="flex items-center">
             <button
@@ -294,22 +312,62 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </h1>
           </div>
 
-          <div className="flex items-center space-x-3 sm:space-x-4">
-            <div className="hidden sm:flex flex-col text-right mr-2">
-              {/* Display user firstName, lastName, role, and branchName in the header[cite: 4] */}
-              <span className="text-sm font-bold text-zinc-900">{user.firstName} {user.lastName}</span>
-              <span className="text-xs font-medium text-bakery-brown">{user.role} • {user.branchName}</span>
-            </div>
-            <div className="w-10 h-10 rounded-full bg-bakery-gold/20 border border-bakery-gold/40 flex items-center justify-center text-bakery-brown font-bold flex-shrink-0">
-              {user.firstName[0]}{user.lastName[0]}
-            </div>
-            <button onClick={handleLogout} className="p-2 text-zinc-400 hover:text-red-600 transition-colors">
-              <LogOut className="w-5 h-5" />
+          <div className="relative" ref={profileRef}>
+            <button 
+              onClick={() => setIsProfileOpen(!isProfileOpen)}
+              className="flex items-center space-x-3 hover:bg-stone-50 p-1.5 rounded-xl transition-colors cursor-pointer"
+            >
+              <div className="hidden sm:flex flex-col text-right mr-1">
+                <span className="text-sm font-bold text-zinc-900">{user.firstName} {user.lastName}</span>
+                <span className="text-xs font-medium text-bakery-brown">{user.role} • {user.branchName}</span>
+              </div>
+              <div className="w-10 h-10 rounded-full bg-bakery-gold/20 border border-bakery-gold/40 flex items-center justify-center text-bakery-brown font-bold flex-shrink-0">
+                {user.firstName[0]}{user.lastName[0]}
+              </div>
+              <ChevronDown className="w-4 h-4 text-stone-400 hidden sm:block" />
             </button>
+
+            {isProfileOpen && (
+              <div className="absolute right-0 mt-2 w-56 bg-white border border-stone-200 rounded-xl shadow-xl py-2 z-50 animate-in fade-in slide-in-from-top-2">
+                
+                <div className="px-4 py-3 border-b border-stone-100 sm:hidden">
+                  <p className="text-sm font-bold text-zinc-900 truncate">{user.firstName} {user.lastName}</p>
+                  <p className="text-xs font-medium text-bakery-brown truncate">{user.role}</p>
+                </div>
+
+                <div className="px-2 space-y-1 mt-2">
+                  <Link 
+                    href="/dashboard/profile" 
+                    onClick={() => setIsProfileOpen(false)}
+                    className="flex items-center w-full px-3 py-2 text-sm text-stone-700 hover:bg-stone-50 hover:text-bakery-brown rounded-lg transition-colors"
+                  >
+                    <UserCircle className="w-4 h-4 mr-3 text-stone-400" />
+                    Account Settings
+                  </Link>
+                  <Link 
+                    href="/dashboard/profile/security" 
+                    onClick={() => setIsProfileOpen(false)}
+                    className="flex items-center w-full px-3 py-2 text-sm text-stone-700 hover:bg-stone-50 hover:text-bakery-brown rounded-lg transition-colors"
+                  >
+                    <Lock className="w-4 h-4 mr-3 text-stone-400" />
+                    Change Password
+                  </Link>
+                </div>
+                
+                <div className="px-2 mt-2 pt-2 border-t border-stone-100">
+                  <button 
+                    onClick={handleLogout} 
+                    className="flex items-center w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer font-medium"
+                  >
+                    <LogOut className="w-4 h-4 mr-3" />
+                    Log Out
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </header>
 
-        {/* Page Content[cite: 4] */}
         <main className="flex-1 overflow-auto p-4 sm:p-6 lg:p-8">
           {children}
         </main>

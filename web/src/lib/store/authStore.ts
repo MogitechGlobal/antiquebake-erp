@@ -10,6 +10,7 @@ interface User {
   role: string;
   branchName: string;
   branchId: string;
+  phone?: string;
 }
 
 interface AuthState {

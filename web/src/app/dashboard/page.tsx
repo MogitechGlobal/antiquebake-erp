@@ -1,4 +1,3 @@
-// web/src/app/dashboard/page.tsx
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -88,6 +87,9 @@ interface StaffMember {
   };
 }
 
+// Authorized roles for the Executive Dashboard
+const ALLOWED_ROLES = ["Super Admin", "Admin", "Branch Manager", "Accountant"];
+
 export default function DashboardPage() {
   const { user, token } = useAuthStore();
 
@@ -106,12 +108,15 @@ export default function DashboardPage() {
   const [customEndDate, setCustomEndDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [selectedStaff, setSelectedStaff] = useState<string>("ALL");
 
+  const isAuthorized = user ? ALLOWED_ROLES.includes(user.role) : false;
+
   const axiosConfig = useMemo(() => ({
     headers: { Authorization: `Bearer ${token}` }
   }), [token]);
 
   const fetchDashboardData = useCallback(async () => {
-    if (!user?.branchId || !token) return;
+    // Prevent fetching if unauthorized or missing credentials
+    if (!user?.branchId || !token || !isAuthorized) return; 
     
     try {
       setIsLoading(true);
@@ -157,11 +162,31 @@ export default function DashboardPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.branchId, token, axiosConfig]);
+  }, [user?.branchId, token, axiosConfig, isAuthorized]);
 
   useEffect(() => {
-    fetchDashboardData();
-  }, [fetchDashboardData]);
+    if (isAuthorized) {
+      fetchDashboardData();
+    }
+  }, [fetchDashboardData, isAuthorized]);
+
+  // --- UNAUTHORIZED STATE RENDERING ---
+  if (user && !isAuthorized) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[75vh] animate-in fade-in duration-500 text-center px-6">
+        <div className="w-24 h-24 bg-red-50 border border-red-100 rounded-full flex items-center justify-center mb-6 shadow-sm">
+          <AlertTriangle className="w-10 h-10 text-red-500" />
+        </div>
+        <h2 className="text-3xl md:text-4xl font-black text-zinc-900 tracking-tight mb-4">Access Restricted</h2>
+        <p className="text-stone-500 font-medium max-w-md mx-auto text-base">
+          Your current profile (<strong className="text-zinc-800">{user.role}</strong>) does not have executive clearance to view this section.
+        </p>
+        <p className="text-sm text-stone-400 mt-6 uppercase tracking-widest font-bold">
+          Please navigate using the sidebar menu.
+        </p>
+      </div>
+    );
+  }
 
   // --- ADVANCED FILTER LOGIC ---
   const isDateInPeriod = (dateStr: string) => {
