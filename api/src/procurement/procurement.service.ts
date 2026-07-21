@@ -1,7 +1,7 @@
 // api/src/procurement/procurement.service.ts
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateSupplierDto, CreatePurchaseOrderDto, UpdatePOStatusDto } from './dto/procurement.dto';
+import { CreateSupplierDto, CreatePurchaseOrderDto, UpdateOrderStatusDto } from './dto/procurement.dto';
 
 @Injectable()
 export class ProcurementService {
@@ -62,7 +62,7 @@ export class ProcurementService {
     });
   }
 
-  async updatePOStatus(id: string, updateDto: UpdatePOStatusDto) {
+  async updatePOStatus(id: string, updateDto: UpdateOrderStatusDto) {
     const po = await this.prisma.purchaseOrder.findUnique({
       where: { id },
       include: { items: true },

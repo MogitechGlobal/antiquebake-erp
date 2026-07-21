@@ -1,7 +1,7 @@
 // api/src/procurement/procurement.controller.ts
 import { Controller, Get, Post, Body, Patch, Param, UseGuards } from '@nestjs/common';
 import { ProcurementService } from './procurement.service';
-import { CreateSupplierDto, CreatePurchaseOrderDto, UpdatePOStatusDto } from './dto/procurement.dto';
+import { CreateSupplierDto, CreatePurchaseOrderDto, UpdateOrderStatusDto } from './dto/procurement.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @UseGuards(JwtAuthGuard)
@@ -30,7 +30,7 @@ export class ProcurementController {
   }
 
   @Patch('order/:id/status')
-  updatePOStatus(@Param('id') id: string, @Body() updateDto: UpdatePOStatusDto) {
+  updatePOStatus(@Param('id') id: string, @Body() updateDto: UpdateOrderStatusDto) {
     return this.procurementService.updatePOStatus(id, updateDto);
   }
 }

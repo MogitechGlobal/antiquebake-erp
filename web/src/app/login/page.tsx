@@ -1,8 +1,9 @@
-// web/src/app/login/page.tsx
 "use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import Image from "next/image";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -19,7 +20,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Loader2, Mail, Lock, Wheat } from "lucide-react";
+import { Loader2, Mail, Lock, ArrowLeft } from "lucide-react";
 
 // Strict validation schema
 const formSchema = z.object({
@@ -66,8 +67,14 @@ export default function LoginPage() {
         <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-bakery-gold via-transparent to-transparent pointer-events-none"></div>
         
         <div className="relative z-10 flex items-center space-x-3">
-          <div className="p-2 bg-bakery-gold/20 rounded-lg backdrop-blur-sm">
-            <Wheat className="w-8 h-8 text-bakery-gold" />
+          <div className="relative w-16 h-12 flex-shrink-0 p-1 bg-bakery-gold/20 rounded-lg backdrop-blur-sm">
+            <Image 
+              src="/web-app-manifest-512x512.png" 
+              alt="Antique Oven Logo" 
+              fill 
+              className="object-contain"
+              priority
+            />
           </div>
           <span className="text-2xl font-bold tracking-wider uppercase text-bakery-gold">
             Antique Oven Ltd
@@ -90,14 +97,31 @@ export default function LoginPage() {
       </div>
 
       {/* RIGHT PANEL: Login Form (Full width on mobile, half on desktop) */}
-      <div className="flex w-full lg:w-1/2 items-center justify-center p-6 sm:p-12">
-        <div className="w-full max-w-md space-y-8 bg-white p-8 sm:p-10 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-stone-100">
+      <div className="flex w-full lg:w-1/2 items-center justify-center p-6 sm:p-12 relative">
+        
+        {/* Back to Home Button */}
+        <div className="absolute top-6 left-6 sm:left-12">
+          <Link 
+            href="/" 
+            className="inline-flex items-center text-xs font-bold uppercase tracking-widest text-stone-500 hover:text-bakery-brown transition-colors group"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2 group-hover:-translate-x-1 transition-transform" />
+            Back to Home
+          </Link>
+        </div>
+
+        <div className="w-full max-w-md space-y-8 bg-white p-8 sm:p-10 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-stone-100 mt-8 sm:mt-0">
           
           <div className="space-y-3 text-center lg:text-left">
             {/* Mobile Logo */}
             <div className="flex lg:hidden justify-center mb-6">
-              <div className="p-3 bg-bakery-cream rounded-full">
-                <Wheat className="w-8 h-8 text-bakery-chocolate" />
+              <div className="relative w-20 h-14">
+                <Image 
+                  src="/web-app-manifest-512x512.png" 
+                  alt="Antique Oven Logo" 
+                  fill 
+                  className="object-contain"
+                />
               </div>
             </div>
             <h2 className="text-3xl font-bold text-stone-900 tracking-tight">Welcome back</h2>
@@ -171,7 +195,7 @@ export default function LoginPage() {
 
               <Button 
                 type="submit" 
-                className="w-full h-12 text-base font-semibold bg-bakery-brown hover:bg-bakery-chocolate text-white rounded-xl shadow-lg shadow-bakery-brown/20 transition-all active:scale-[0.98]"
+                className="w-full h-12 text-base font-semibold bg-bakery-brown hover:bg-bakery-chocolate text-white rounded-xl shadow-lg shadow-bakery-brown/20 transition-all active:scale-[0.98] cursor-pointer"
                 disabled={form.formState.isSubmitting}
               >
                 {form.formState.isSubmitting ? (

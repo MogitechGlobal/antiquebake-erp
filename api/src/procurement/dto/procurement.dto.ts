@@ -1,6 +1,7 @@
 // api/src/procurement/dto/procurement.dto.ts
 import { IsString, IsNotEmpty, IsOptional, IsNumber, IsArray, ValidateNested, Min, IsEnum } from 'class-validator';
 import { Type } from 'class-transformer';
+import { IsIn, } from 'class-validator';
 
 export class CreateSupplierDto {
   @IsString()
@@ -53,7 +54,8 @@ export class CreatePurchaseOrderDto {
   items!: POItemDto[];
 }
 
-export class UpdatePOStatusDto {
-  @IsEnum(['PENDING', 'RECEIVED', 'CANCELLED'])
+export class UpdateOrderStatusDto {
+  @IsString()
+  @IsIn(['DRAFT', 'PENDING', 'APPROVED', 'RECEIVED', 'CANCELLED']) // Make sure all these are allowed!
   status!: string;
 }

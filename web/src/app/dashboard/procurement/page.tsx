@@ -1,11 +1,9 @@
-// web/src/app/dashboard/procurement/page.tsx
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import axios from "axios";
 import { useAuthStore } from "@/lib/store/authStore";
 import { 
-  Truck, 
   Plus, 
   Search, 
   FileText,
@@ -15,18 +13,20 @@ import {
   CheckCircle2,
   Clock,
   Printer,
-  Download,
   Eye,
   Wallet,
-  AlertTriangle,
   ClipboardList,
   Box,
   Users,
   Building2,
   Phone,
-  Mail
+  Mail,
+  AlertCircle,
+  RotateCcw,
+  Info
 } from "lucide-react";
 
+// --- INTERFACES ---
 interface Supplier {
   id: string;
   name: string;
@@ -53,7 +53,7 @@ interface POItem {
 interface PurchaseOrder {
   id: string;
   poNumber: string;
-  status: string; // PENDING, RECEIVED, CANCELLED
+  status: 'DRAFT' | 'APPROVED' | 'RECEIVED' | 'CANCELLED'; 
   totalAmount: number;
   createdAt: string;
   supplier: Supplier;
@@ -63,7 +63,6 @@ interface PurchaseOrder {
 export default function ProcurementDashboardPage() {
   const { user, token } = useAuthStore();
   
-  // Dynamic URL evaluation matching local fallback or production environment variable
   const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
   
   // Data State
@@ -81,6 +80,7 @@ export default function ProcurementDashboardPage() {
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
   const [isLpoModalOpen, setIsLpoModalOpen] = useState(false);
   const [isDirectGrnModalOpen, setIsDirectGrnModalOpen] = useState(false);
+  const [isReceiveModalOpen, setIsReceiveModalOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -88,8 +88,12 @@ export default function ProcurementDashboardPage() {
   const [supplierForm, setSupplierForm] = useState({ name: "", contactPerson: "", phone: "", email: "" });
   const [lpoForm, setLpoForm] = useState({ supplierId: "", isDirectGrn: false });
   const [lpoItems, setLpoItems] = useState([{ itemId: "", quantity: "", unitPrice: "" }]);
+  const [receiveForm, setReceiveForm] = useState({ deliveryNote: "", file: null as File | null });
 
-  const axiosConfig = { headers: { Authorization: `Bearer ${token}` } };
+  const axiosConfig = useMemo(() => ({ headers: { Authorization: `Bearer ${token}` } }), [token]);
+
+  // Role-Based Control Check
+  const isManager = user?.role === 'Admin' || user?.role === 'Super Admin' || user?.role === 'StoreManager';
 
   const fetchProcurementData = useCallback(async () => {
     if (!user?.branchId || !token) return;
@@ -113,7 +117,7 @@ export default function ProcurementDashboardPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.branchId, token, API_URL]);
+  }, [user?.branchId, token, API_URL, axiosConfig]);
 
   useEffect(() => {
     fetchProcurementData();
@@ -153,16 +157,28 @@ export default function ProcurementDashboardPage() {
     }
 
     try {
-      // Create the base order
       const res = await axios.post(`${API_URL}/api/v1/procurement/order`, { 
         supplierId: lpoForm.supplierId, 
         branchId: user.branchId,
-        items: validItems 
+        items: validItems
       }, axiosConfig);
 
-      // If Direct GRN, immediately process the receipt
+      const newOrderId = res.data.id;
+
+      let targetStatus = 'PENDING'; 
       if (isDirectGrn) {
-        await axios.patch(`${API_URL}/api/v1/procurement/order/${res.data.id}/status`, { status: "RECEIVED" }, axiosConfig);
+        targetStatus = 'RECEIVED';
+      } else if (isManager) {
+        targetStatus = 'PENDING'; 
+      }
+
+      if (targetStatus !== 'PENDING') {
+        try {
+          await axios.patch(`${API_URL}/api/v1/procurement/order/${newOrderId}/status`, { status: targetStatus }, axiosConfig);
+        } catch (patchErr: any) {
+          console.error("PATCH Error Details:", patchErr.response?.data);
+          alert(`Order was created, but updating the status failed.\nPlease check the allowed enum values in your procurement.dto.ts`);
+        }
       }
       
       setLpoForm({ supplierId: "", isDirectGrn: false });
@@ -171,36 +187,64 @@ export default function ProcurementDashboardPage() {
       setIsLpoModalOpen(false);
       setIsDirectGrnModalOpen(false);
       setActiveTab(isDirectGrn ? 'GRN' : 'LPO');
-    } catch (err) {
-      alert("Failed to generate order.");
+      
+    } catch (err: any) {
+      console.error("Backend Error Details:", err.response?.data);
+      const errorMessage = Array.isArray(err.response?.data?.message) 
+        ? err.response.data.message.join('\n') 
+        : err.response?.data?.message || "Failed to generate order.";
+        
+      alert(`Validation Error:\n${errorMessage}`);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const receiveOrder = async (orderId: string) => {
-    if (!confirm("Confirming receipt will automatically add these items to your inventory. Proceed?")) return;
+  const handleOrderStatusUpdate = async (orderId: string, newStatus: string) => {
+    if (!isManager && newStatus !== 'DRAFT') {
+      alert("Access Denied: Only Managers can update LPO status.");
+      return;
+    }
+    
+    let confirmMsg = `Are you sure you want to update this order to ${newStatus}?`;
+    if (newStatus === 'CANCELLED') confirmMsg = "Are you sure you want to cancel this order?";
+    
+    if (!confirm(confirmMsg)) return;
+
     setIsSubmitting(true);
     try {
-      await axios.patch(`${API_URL}/api/v1/procurement/order/${orderId}/status`, { status: "RECEIVED" }, axiosConfig);
+      await axios.patch(`${API_URL}/api/v1/procurement/order/${orderId}/status`, { status: newStatus }, axiosConfig);
       fetchProcurementData();
-      setSelectedOrder(null);
+      
+      if (selectedOrder && selectedOrder.id === orderId) {
+        setSelectedOrder({ ...selectedOrder, status: newStatus as any });
+      }
     } catch (err) {
-      alert("Failed to process GRN.");
+      alert(`Failed to update order to ${newStatus}.`);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const cancelOrder = async (orderId: string) => {
-    if (!confirm("Are you sure you want to cancel this order?")) return;
+  const handleReceiveStock = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedOrder) return;
     setIsSubmitting(true);
+    
     try {
-      await axios.patch(`${API_URL}/api/v1/procurement/order/${orderId}/status`, { status: "CANCELLED" }, axiosConfig);
+      // Future-proofing for multipart/form-data when backend accepts file uploads[cite: 14]
+      // For now, we update the status via the existing patch route
+      await axios.patch(`${API_URL}/api/v1/procurement/order/${selectedOrder.id}/status`, { 
+        status: 'RECEIVED',
+        deliveryNote: receiveForm.deliveryNote // Ensure your backend DTO allows this if you want to store it
+      }, axiosConfig);
+      
       fetchProcurementData();
-      setSelectedOrder(null);
+      setSelectedOrder({ ...selectedOrder, status: 'RECEIVED' });
+      setIsReceiveModalOpen(false);
+      setReceiveForm({ deliveryNote: "", file: null });
     } catch (err) {
-      alert("Failed to cancel order.");
+      alert(`Failed to receive stock.`);
     } finally {
       setIsSubmitting(false);
     }
@@ -225,12 +269,12 @@ export default function ProcurementDashboardPage() {
   const currentData = getFilteredData();
 
   const totalSpend = completedGRNs.reduce((sum, o) => sum + o.totalAmount, 0);
-  const pendingLiabilities = activeLPOs.filter(o=>o.status === 'PENDING').reduce((sum, o) => sum + o.totalAmount, 0);
+  const pendingLiabilities = activeLPOs.filter(o=>o.status === 'APPROVED' || o.status === 'DRAFT').reduce((sum, o) => sum + o.totalAmount, 0);
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-[60vh] text-zinc-500">
-        <Loader2 className="w-10 h-10 animate-spin mr-4 text-bakery-gold" />
+        <Loader2 className="w-10 h-10 animate-spin mr-4 text-blue-600" />
         <span className="font-bold text-xl tracking-tight">Compiling Supply Chain...</span>
       </div>
     );
@@ -249,7 +293,7 @@ export default function ProcurementDashboardPage() {
           <button onClick={() => { setLpoForm({...lpoForm, isDirectGrn: true}); setIsDirectGrnModalOpen(true); }} className="bg-white hover:bg-zinc-50 text-zinc-700 border border-zinc-200 px-4 py-2.5 rounded-xl font-bold shadow-sm transition-all flex items-center">
             <Box className="w-4 h-4 mr-2 text-emerald-600" /> Direct Stock In
           </button>
-          <button onClick={() => { setLpoForm({...lpoForm, isDirectGrn: false}); setIsLpoModalOpen(true); }} className="bg-bakery-brown hover:bg-bakery-chocolate text-white px-5 py-2.5 rounded-xl font-bold shadow-lg transition-all flex items-center">
+          <button onClick={() => { setLpoForm({...lpoForm, isDirectGrn: false}); setIsLpoModalOpen(true); }} className="bg-zinc-900 hover:bg-black text-white px-5 py-2.5 rounded-xl font-bold shadow-lg transition-all flex items-center">
             <FileText className="w-5 h-5 mr-2" /> Generate LPO
           </button>
         </div>
@@ -259,23 +303,23 @@ export default function ProcurementDashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 print:hidden">
         <div className="bg-white p-6 rounded-2xl border-l-4 border-l-emerald-500 border-y border-r border-zinc-200 shadow-sm flex items-center justify-between h-full">
           <div>
-            <h6 className="text-zinc-500 small font-bold text-uppercase mb-1 tracking-wider text-xs">Total GRN Value</h6>
-            <h3 className="fw-bold text-zinc-900 mb-0 text-2xl font-extrabold">TZS {totalSpend.toLocaleString()}</h3>
+            <h6 className="text-zinc-500 small font-bold uppercase mb-1 tracking-wider text-xs">Total GRN Value</h6>
+            <h3 className="text-zinc-900 mb-0 text-2xl font-extrabold">TZS {totalSpend.toLocaleString()}</h3>
           </div>
           <div className="text-emerald-600 bg-emerald-50 p-3 rounded-2xl"><Wallet className="w-8 h-8" /></div>
         </div>
         <div className="bg-white p-6 rounded-2xl border-l-4 border-l-amber-500 border-y border-r border-zinc-200 shadow-sm flex items-center justify-between h-full">
           <div>
-            <h6 className="text-zinc-500 small font-bold text-uppercase mb-1 tracking-wider text-xs">Pending Liabilities</h6>
-            <h3 className="fw-bold text-zinc-900 mb-0 text-2xl font-extrabold">TZS {pendingLiabilities.toLocaleString()}</h3>
+            <h6 className="text-zinc-500 small font-bold uppercase mb-1 tracking-wider text-xs">Pending Liabilities</h6>
+            <h3 className="text-zinc-900 mb-0 text-2xl font-extrabold">TZS {pendingLiabilities.toLocaleString()}</h3>
           </div>
           <div className="text-amber-600 bg-amber-50 p-3 rounded-2xl"><Clock className="w-8 h-8" /></div>
         </div>
         <div className="bg-gradient-to-br from-zinc-900 to-zinc-800 p-6 rounded-2xl shadow-lg flex items-center justify-between h-full relative overflow-hidden">
           <div className="absolute right-0 top-0 w-32 h-32 bg-white/5 rounded-full blur-2xl"></div>
           <div className="z-10">
-            <h6 className="text-zinc-400 small font-bold text-uppercase mb-1 tracking-wider text-xs">Active Vendors</h6>
-            <h3 className="fw-bold text-white mb-0 text-3xl font-extrabold">{suppliers.length}</h3>
+            <h6 className="text-zinc-400 small font-bold uppercase mb-1 tracking-wider text-xs">Active Vendors</h6>
+            <h3 className="text-white mb-0 text-3xl font-extrabold">{suppliers.length}</h3>
           </div>
           <div className="text-zinc-300 bg-white/10 p-3 rounded-2xl z-10"><Building2 className="w-8 h-8" /></div>
         </div>
@@ -286,13 +330,13 @@ export default function ProcurementDashboardPage() {
         
         {/* Tabs */}
         <div className="flex border-b border-zinc-200 bg-zinc-50/50 px-2 pt-2 overflow-x-auto custom-scrollbar">
-          <button onClick={() => setActiveTab('LPO')} className={`px-6 py-3 font-bold text-sm border-b-2 transition-colors flex items-center whitespace-nowrap ${activeTab === 'LPO' ? 'border-bakery-gold text-bakery-brown bg-white rounded-t-xl' : 'border-transparent text-zinc-500 hover:text-zinc-700'}`}>
+          <button onClick={() => setActiveTab('LPO')} className={`px-6 py-3 font-bold text-sm border-b-2 transition-colors flex items-center whitespace-nowrap ${activeTab === 'LPO' ? 'border-blue-600 text-blue-700 bg-white rounded-t-xl' : 'border-transparent text-zinc-500 hover:text-zinc-700'}`}>
             <ClipboardList className="w-4 h-4 mr-2" /> Purchase Orders (LPO)
           </button>
-          <button onClick={() => setActiveTab('GRN')} className={`px-6 py-3 font-bold text-sm border-b-2 transition-colors flex items-center whitespace-nowrap ${activeTab === 'GRN' ? 'border-bakery-gold text-bakery-brown bg-white rounded-t-xl' : 'border-transparent text-zinc-500 hover:text-zinc-700'}`}>
+          <button onClick={() => setActiveTab('GRN')} className={`px-6 py-3 font-bold text-sm border-b-2 transition-colors flex items-center whitespace-nowrap ${activeTab === 'GRN' ? 'border-blue-600 text-blue-700 bg-white rounded-t-xl' : 'border-transparent text-zinc-500 hover:text-zinc-700'}`}>
             <Box className="w-4 h-4 mr-2" /> Goods Received (GRN)
           </button>
-          <button onClick={() => setActiveTab('SUPPLIERS')} className={`px-6 py-3 font-bold text-sm border-b-2 transition-colors flex items-center whitespace-nowrap ${activeTab === 'SUPPLIERS' ? 'border-bakery-gold text-bakery-brown bg-white rounded-t-xl' : 'border-transparent text-zinc-500 hover:text-zinc-700'}`}>
+          <button onClick={() => setActiveTab('SUPPLIERS')} className={`px-6 py-3 font-bold text-sm border-b-2 transition-colors flex items-center whitespace-nowrap ${activeTab === 'SUPPLIERS' ? 'border-blue-600 text-blue-700 bg-white rounded-t-xl' : 'border-transparent text-zinc-500 hover:text-zinc-700'}`}>
             <Users className="w-4 h-4 mr-2" /> Vendor Directory
           </button>
         </div>
@@ -306,11 +350,11 @@ export default function ProcurementDashboardPage() {
               placeholder={`Search ${activeTab.toLowerCase()}...`}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm focus:ring-2 focus:ring-bakery-gold transition-all"
+              className="w-full pl-9 pr-3 py-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 transition-all"
             />
           </div>
           {activeTab === 'SUPPLIERS' && (
-             <button onClick={() => setIsSupplierModalOpen(true)} className="w-full md:w-auto btn btn-outline-primary text-sm font-bold bg-bakery-gold/10 text-bakery-brown px-4 py-2.5 rounded-xl hover:bg-bakery-gold/20 flex items-center justify-center transition-colors">
+             <button onClick={() => setIsSupplierModalOpen(true)} className="w-full md:w-auto text-sm font-bold bg-blue-50 text-blue-700 px-4 py-2.5 rounded-xl hover:bg-blue-100 flex items-center justify-center transition-colors">
                <UserPlus className="w-4 h-4 mr-2" /> Add New Vendor
              </button>
           )}
@@ -372,7 +416,8 @@ export default function ProcurementDashboardPage() {
                         <p className="text-[11px] text-zinc-400">{order.items.length} Items</p>
                       </td>
                       <td className="px-6 py-4">
-                        {order.status === 'PENDING' && <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200"><Clock className="w-3 h-3 mr-1.5" /> Pending</span>}
+                        {order.status === 'DRAFT' && <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-zinc-100 text-zinc-700 border border-zinc-200"><AlertCircle className="w-3 h-3 mr-1.5" /> Draft</span>}
+                        {order.status === 'APPROVED' && <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200"><Clock className="w-3 h-3 mr-1.5" /> Approved</span>}
                         {order.status === 'RECEIVED' && <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200"><CheckCircle2 className="w-3 h-3 mr-1.5" /> Received</span>}
                         {order.status === 'CANCELLED' && <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-red-50 text-red-700 border border-red-200"><X className="w-3 h-3 mr-1.5" /> Cancelled</span>}
                       </td>
@@ -394,118 +439,188 @@ export default function ProcurementDashboardPage() {
       </div>
 
       {/* --- FORMAL DOCUMENT MODAL (View LPO / GRN) --- */}
-      {selectedOrder && (
+      {selectedOrder && !isReceiveModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity print:hidden" onClick={() => setSelectedOrder(null)} />
-          <div className="relative bg-white w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh] print:rounded-none print:shadow-none print:h-auto print:max-h-none print:block">
+          <div className="relative bg-white w-full max-w-4xl rounded-xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[95vh] print:rounded-none print:shadow-none print:h-auto print:max-h-none print:block">
             
             {/* Modal Header Actions (Hidden on Print) */}
-            <div className="px-6 py-4 border-b border-zinc-100 bg-zinc-50 flex items-center justify-between print:hidden">
-              <div className="flex gap-2">
-                <button onClick={() => window.print()} className="px-4 py-2 bg-white border border-zinc-200 text-zinc-700 text-sm font-bold rounded-xl hover:bg-zinc-100 flex items-center shadow-sm transition-colors">
-                  <Printer className="w-4 h-4 mr-2" /> Print Document
-                </button>
-              </div>
-              <button onClick={() => setSelectedOrder(null)} className="p-2 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-200 rounded-full transition-colors"><X className="w-5 h-5" /></button>
+            <div className="px-6 py-4 border-b border-zinc-200 flex items-center justify-between print:hidden">
+              <h3 className="text-xl font-bold text-zinc-800">Purchase Order Details</h3>
+              <button onClick={() => setSelectedOrder(null)} className="p-1 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 rounded-lg transition-colors"><X className="w-6 h-6" /></button>
             </div>
             
             {/* Printable Document Body */}
             <div className="flex-1 overflow-y-auto p-8 print:p-0 print:overflow-visible">
               
               {/* Document Header */}
-              <div className="flex justify-between items-start border-b-2 border-zinc-800 pb-6 mb-6">
+              <div className="flex justify-between items-start mb-6">
                 <div>
-                  <h1 className="text-3xl font-extrabold tracking-widest text-zinc-900 uppercase">AntiqueBake</h1>
-                  <p className="text-sm font-medium text-zinc-600 mt-1">Branch: {user?.branchName}</p>
-                  <p className="text-sm font-medium text-zinc-600">Company ID: AB-1000-TZ</p>
+                  <h1 className="text-3xl font-bold text-blue-600 mb-1">Antique Oven Ltd</h1>
+                  <p className="text-sm text-zinc-700">P.O. Box 6681, Morogoro, Tanzania</p>
+                  <p className="text-sm text-zinc-700">Tel: +255 23 261 4216 | Email: info@antiqueoven.co.tz</p>
+                  <p className="text-sm text-zinc-700">Website: www.antiqueoven.co.tz</p>
+                  <p className="text-sm text-zinc-500 mt-2">
+                     {selectedOrder.status === 'RECEIVED' ? 'Goods Received Note' : 'Purchase Order'}
+                  </p>
                 </div>
                 <div className="text-right">
-                  <h2 className="text-2xl font-bold text-bakery-brown uppercase tracking-wider">
-                    {selectedOrder.status === 'RECEIVED' ? 'Goods Received Note' : 'Purchase Order'}
-                  </h2>
-                  <p className="text-lg font-bold text-zinc-900 mt-1">{selectedOrder.poNumber}</p>
-                  <p className="text-sm font-medium text-zinc-500 mt-1">Date: {new Date(selectedOrder.createdAt).toLocaleDateString()}</p>
-                  <div className="mt-2 inline-block px-3 py-1 rounded border font-bold text-xs uppercase tracking-wider bg-zinc-100 text-zinc-800">
-                    Status: {selectedOrder.status}
-                  </div>
+                  <h2 className="text-2xl font-bold text-zinc-900 mb-1">{selectedOrder.poNumber}</h2>
+                  <p className="text-sm text-zinc-500 mb-2">Date: {new Date(selectedOrder.createdAt).toLocaleDateString()}</p>
+                  <span className="inline-block px-3 py-1 bg-zinc-500 text-white text-xs font-semibold rounded-md">
+                     {selectedOrder.status.charAt(0).toUpperCase() + selectedOrder.status.slice(1).toLowerCase()}
+                  </span>
                 </div>
               </div>
+
+              <hr className="border-zinc-200 mb-6" />
 
               {/* Vendor & Ship To */}
               <div className="flex justify-between mb-8">
                 <div className="w-1/2 pr-4">
-                  <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2">Vendor / Supplier</p>
+                  <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-1">Vendor</p>
                   <h4 className="text-lg font-bold text-zinc-900">{selectedOrder.supplier.name}</h4>
-                  <p className="text-sm text-zinc-600 mt-1">{selectedOrder.supplier.contactPerson || 'Attn: Sales Dept'}</p>
-                  <p className="text-sm text-zinc-600">{selectedOrder.supplier.phone}</p>
                 </div>
-                <div className="w-1/2 pl-4 border-l border-zinc-200">
-                  <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2">Ship To / Delivery</p>
-                  <h4 className="text-lg font-bold text-zinc-900">AntiqueBake ({user?.branchName})</h4>
-                  <p className="text-sm text-zinc-600 mt-1">Receiving Bay, Main Entrance</p>
-                  <p className="text-sm text-zinc-600">Generated By: {user?.firstName} {user?.lastName}</p>
+                <div className="w-1/2 text-right">
+                  <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-1">Ship To</p>
+                  <h4 className="text-lg font-bold text-zinc-900">Antique Oven Ltd</h4>
+                  <p className="text-sm text-zinc-700">{user?.branchName || 'Main Store'}</p>
                 </div>
               </div>
 
               {/* Items Table */}
-              <table className="w-full text-left border-collapse mb-8">
-                <thead>
-                  <tr className="bg-zinc-100 border-y-2 border-zinc-800 text-xs uppercase tracking-wider text-zinc-800 font-bold">
-                    <th className="py-3 px-4">Item Description</th>
-                    <th className="py-3 px-4 text-center">Category</th>
-                    <th className="py-3 px-4 text-center">Qty</th>
-                    <th className="py-3 px-4 text-right">Unit Price</th>
-                    <th className="py-3 px-4 text-right">Line Total</th>
+              <table className="w-full text-left border-collapse border border-zinc-800 mb-8">
+                <thead className="bg-zinc-50">
+                  <tr>
+                    <th className="py-2 px-3 border border-zinc-800 text-sm font-bold text-zinc-900">Description</th>
+                    <th className="py-2 px-3 border border-zinc-800 text-sm font-bold text-zinc-900 text-center">Qty</th>
+                    <th className="py-2 px-3 border border-zinc-800 text-sm font-bold text-zinc-900 text-right">Unit Price</th>
+                    <th className="py-2 px-3 border border-zinc-800 text-sm font-bold text-zinc-900 text-right">Total</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-zinc-200">
+                <tbody>
                   {selectedOrder.items.map(item => (
-                    <tr key={item.id} className="text-sm">
-                      <td className="py-4 px-4 font-bold text-zinc-900">{item.item.name}</td>
-                      <td className="py-4 px-4 text-center text-zinc-500 text-xs">{item.item.category.replace('_', ' ')}</td>
-                      <td className="py-4 px-4 text-center font-semibold text-zinc-800">{item.quantity} {item.item.unit}</td>
-                      <td className="py-4 px-4 text-right text-zinc-600">{item.unitPrice.toLocaleString()}</td>
-                      <td className="py-4 px-4 text-right font-bold text-zinc-900">{item.subtotal.toLocaleString()}</td>
+                    <tr key={item.id}>
+                      <td className="py-3 px-3 border border-zinc-800">
+                        <div className="text-sm font-medium text-zinc-900">{item.item.name}</div>
+                        <div className="text-xs text-zinc-500">{item.item.id.substring(0, 10).toUpperCase()}</div>
+                      </td>
+                      <td className="py-3 px-3 border border-zinc-800 text-center text-sm text-zinc-700">
+                        {item.quantity} {item.item.unit}
+                      </td>
+                      <td className="py-3 px-3 border border-zinc-800 text-right text-sm text-zinc-700">
+                        {item.unitPrice.toLocaleString()}
+                      </td>
+                      <td className="py-3 px-3 border border-zinc-800 text-right text-sm font-bold text-zinc-900">
+                        {item.subtotal.toLocaleString()}
+                      </td>
                     </tr>
                   ))}
+                  <tr>
+                    <td colSpan={3} className="py-3 px-3 border border-zinc-800 text-right font-bold text-zinc-900">TOTAL:</td>
+                    <td className="py-3 px-3 border border-zinc-800 text-right font-bold text-zinc-900 text-lg">
+                      {selectedOrder.totalAmount.toLocaleString()}
+                    </td>
+                  </tr>
                 </tbody>
               </table>
 
-              {/* Totals & Signatures */}
-              <div className="flex justify-between items-end">
-                <div className="w-1/2 text-xs text-zinc-500 space-y-6">
-                   <div className="border-t border-zinc-300 w-48 pt-1 text-center">Authorized Signature</div>
-                   <div className="border-t border-zinc-300 w-48 pt-1 text-center">Receiver Signature</div>
-                </div>
-                <div className="w-1/3 bg-zinc-50 p-4 rounded-xl border border-zinc-200 print:border-none print:bg-transparent text-right">
-                  <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1">Grand Total</p>
-                  <p className="text-3xl font-extrabold text-zinc-900">TZS {selectedOrder.totalAmount.toLocaleString()}</p>
-                </div>
+              {/* Footer text */}
+              <div className="border-t border-dashed border-zinc-400 pt-2 text-center text-xs text-zinc-900 pb-4">
+                Generated by: <strong>{user?.firstName} {user?.lastName}</strong>
               </div>
 
             </div>
 
-            {/* Workflow Footer (Hidden on Print) */}
-            <div className="p-4 border-t border-zinc-200 bg-zinc-100 flex justify-between items-center print:hidden">
-              <div>
-                 {selectedOrder.status === 'PENDING' && (
-                    <button onClick={() => cancelOrder(selectedOrder.id)} disabled={isSubmitting} className="text-xs font-bold text-red-600 hover:text-red-800 transition-colors uppercase tracking-wider">
-                       Cancel Order
+            {/* Workflow Footer (Hidden on Print)[cite: 14] */}
+            <div className="p-4 border-t border-zinc-200 bg-white flex justify-between items-center print:hidden">
+              <div className="flex gap-2">
+                 {/* Workflow logic mapped from legacy lpo.php[cite: 14] */}
+                 {isManager && selectedOrder.status === 'APPROVED' && (
+                    <button onClick={() => setIsReceiveModalOpen(true)} disabled={isSubmitting} className="px-4 py-2 text-sm font-bold text-white bg-[#198754] hover:bg-[#157347] rounded shadow-sm transition-colors flex items-center">
+                       <Box className="w-4 h-4 mr-2" /> Receive Stock
+                    </button>
+                 )}
+                 {isManager && selectedOrder.status === 'DRAFT' && (
+                    <button onClick={() => handleOrderStatusUpdate(selectedOrder.id, 'APPROVED')} disabled={isSubmitting} className="px-4 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded shadow-sm transition-colors flex items-center">
+                       <CheckCircle2 className="w-4 h-4 mr-2" /> Approve
+                    </button>
+                 )}
+                 {isManager && (selectedOrder.status === 'DRAFT' || selectedOrder.status === 'APPROVED') && (
+                    <button onClick={() => handleOrderStatusUpdate(selectedOrder.id, 'CANCELLED')} disabled={isSubmitting} className="px-4 py-2 text-sm font-bold text-white bg-[#dc3545] hover:bg-[#bb2d3b] rounded shadow-sm transition-colors flex items-center">
+                       <X className="w-4 h-4 mr-2" /> Cancel Order
+                    </button>
+                 )}
+                 {isManager && selectedOrder.status === 'CANCELLED' && (
+                    <button onClick={() => handleOrderStatusUpdate(selectedOrder.id, 'DRAFT')} disabled={isSubmitting} className="px-4 py-2 text-sm font-bold text-white bg-zinc-500 hover:bg-zinc-600 rounded shadow-sm transition-colors flex items-center">
+                       <RotateCcw className="w-4 h-4 mr-2" /> Reset to Draft
                     </button>
                  )}
               </div>
-              <div className="flex space-x-3">
-                <button onClick={() => setSelectedOrder(null)} className="px-5 py-2.5 text-sm font-bold text-zinc-600 bg-white border border-zinc-300 rounded-xl hover:bg-zinc-50 transition-colors">
-                  Close Window
+              <div className="flex gap-2">
+                <button onClick={() => setSelectedOrder(null)} className="px-5 py-2 text-sm font-bold text-white bg-[#6c757d] hover:bg-[#5c636a] rounded shadow-sm transition-colors">
+                  Close
                 </button>
-                {selectedOrder.status === 'PENDING' && (
-                  <button onClick={() => receiveOrder(selectedOrder.id)} disabled={isSubmitting} className="px-6 py-2.5 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-600/20 rounded-xl flex items-center transition-all">
-                    {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2"/> : <CheckCircle2 className="w-4 h-4 mr-2" />}
-                    Confirm Receipt (GRN)
-                  </button>
-                )}
+                <button onClick={() => window.print()} className="px-5 py-2 text-sm font-bold text-white bg-[#212529] hover:bg-[#1c1f23] rounded shadow-sm transition-colors flex items-center">
+                  <Printer className="w-4 h-4 mr-2" /> Print PO
+                </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- RECEIVE STOCK MODAL[cite: 14] --- */}
+      {isReceiveModalOpen && selectedOrder && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm print:hidden">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95">
+            <div className="px-6 py-4 bg-[#198754] text-white flex justify-between items-center">
+              <h3 className="font-bold text-lg flex items-center">
+                 <Box className="w-5 h-5 mr-2" /> Receive Stock
+              </h3>
+              <button onClick={() => setIsReceiveModalOpen(false)} className="p-1 hover:bg-[#157347] rounded-lg transition-colors"><X className="w-5 h-5"/></button>
+            </div>
+            
+            <form onSubmit={handleReceiveStock}>
+              <div className="p-6 space-y-4">
+                
+                <div className="bg-[#cff4fc] border border-[#b6effb] text-[#055160] p-4 rounded-xl flex items-start text-sm">
+                  <Info className="w-5 h-5 mr-3 flex-shrink-0 mt-0.5" />
+                  <p>This will mark the order as Received and update your inventory levels automatically.</p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-sm font-bold text-zinc-900">Delivery Note Number <span className="text-red-500">*</span></label>
+                  <input 
+                    type="text" 
+                    required 
+                    placeholder="e.g. DN-2024-001" 
+                    value={receiveForm.deliveryNote} 
+                    onChange={e => setReceiveForm({...receiveForm, deliveryNote: e.target.value})} 
+                    className="w-full px-4 py-2.5 bg-white border border-zinc-300 rounded-lg text-sm focus:ring-2 focus:ring-[#198754] outline-none" 
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-sm font-bold text-zinc-900">Attach Document (Optional)</label>
+                  <input 
+                    type="file" 
+                    accept="image/*,.pdf"
+                    onChange={e => setReceiveForm({...receiveForm, file: e.target.files ? e.target.files[0] : null})} 
+                    className="w-full px-3 py-2 bg-white border border-zinc-300 rounded-lg text-sm file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-zinc-100 file:text-zinc-700 hover:file:bg-zinc-200 cursor-pointer" 
+                  />
+                  <p className="text-xs text-zinc-500 mt-1">Upload a picture or PDF of the delivery note/invoice.</p>
+                </div>
+
+              </div>
+              <div className="p-4 bg-zinc-50 border-t border-zinc-200 flex justify-end gap-2">
+                <button type="button" onClick={() => setIsReceiveModalOpen(false)} className="px-5 py-2 text-sm font-bold text-white bg-[#6c757d] hover:bg-[#5c636a] rounded transition-colors">Cancel</button>
+                <button type="submit" disabled={isSubmitting || !receiveForm.deliveryNote} className="px-6 py-2 text-sm font-bold text-white bg-[#198754] hover:bg-[#157347] rounded transition-colors flex items-center disabled:opacity-50">
+                  {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  Confirm Receipt
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -523,19 +638,19 @@ export default function ProcurementDashboardPage() {
               <form id="vendor-form" onSubmit={handleCreateSupplier} className="space-y-5">
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-zinc-600 uppercase">Vendor Name</label>
-                  <input type="text" required placeholder="e.g. Bakhresa Mills" value={supplierForm.name} onChange={e => setSupplierForm({...supplierForm, name: e.target.value})} className="w-full px-4 py-2.5 bg-white border border-zinc-300 rounded-xl text-sm focus:ring-2 focus:ring-bakery-gold" />
+                  <input type="text" required placeholder="e.g. Bakhresa Mills" value={supplierForm.name} onChange={e => setSupplierForm({...supplierForm, name: e.target.value})} className="w-full px-4 py-2.5 bg-white border border-zinc-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500" />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-zinc-600 uppercase">Contact Person</label>
-                  <input type="text" placeholder="e.g. John Doe" value={supplierForm.contactPerson} onChange={e => setSupplierForm({...supplierForm, contactPerson: e.target.value})} className="w-full px-4 py-2.5 bg-white border border-zinc-300 rounded-xl text-sm focus:ring-2 focus:ring-bakery-gold" />
+                  <input type="text" placeholder="e.g. John Doe" value={supplierForm.contactPerson} onChange={e => setSupplierForm({...supplierForm, contactPerson: e.target.value})} className="w-full px-4 py-2.5 bg-white border border-zinc-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500" />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-zinc-600 uppercase">Phone</label>
-                  <input type="text" placeholder="e.g. +255 700 000 000" value={supplierForm.phone} onChange={e => setSupplierForm({...supplierForm, phone: e.target.value})} className="w-full px-4 py-2.5 bg-white border border-zinc-300 rounded-xl text-sm focus:ring-2 focus:ring-bakery-gold" />
+                  <input type="text" placeholder="e.g. +255 700 000 000" value={supplierForm.phone} onChange={e => setSupplierForm({...supplierForm, phone: e.target.value})} className="w-full px-4 py-2.5 bg-white border border-zinc-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500" />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-zinc-600 uppercase">Email (Optional)</label>
-                  <input type="email" placeholder="e.g. sales@vendor.com" value={supplierForm.email} onChange={e => setSupplierForm({...supplierForm, email: e.target.value})} className="w-full px-4 py-2.5 bg-white border border-zinc-300 rounded-xl text-sm focus:ring-2 focus:ring-bakery-gold" />
+                  <input type="email" placeholder="e.g. sales@vendor.com" value={supplierForm.email} onChange={e => setSupplierForm({...supplierForm, email: e.target.value})} className="w-full px-4 py-2.5 bg-white border border-zinc-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500" />
                 </div>
               </form>
             </div>
@@ -569,7 +684,7 @@ export default function ProcurementDashboardPage() {
               <form id="lpo-form" onSubmit={(e) => handleCreateOrder(e, lpoForm.isDirectGrn)}>
                 <div className="space-y-1.5 mb-8">
                   <label className="text-xs font-bold text-zinc-600 uppercase">Select Vendor / Source</label>
-                  <select required value={lpoForm.supplierId} onChange={e => setLpoForm({...lpoForm, supplierId: e.target.value})} className="w-full px-4 py-3 bg-white border border-zinc-300 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-bakery-gold shadow-sm">
+                  <select required value={lpoForm.supplierId} onChange={e => setLpoForm({...lpoForm, supplierId: e.target.value})} className="w-full px-4 py-3 bg-white border border-zinc-300 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-blue-500 shadow-sm">
                     <option value="">Choose a supplier...</option>
                     {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
@@ -578,9 +693,9 @@ export default function ProcurementDashboardPage() {
                 <div className="space-y-3 pt-4 border-t border-zinc-100">
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="font-bold text-zinc-900 flex items-center">
-                       <Box className="w-4 h-4 mr-2 text-bakery-gold"/> Order Items
+                       <Box className="w-4 h-4 mr-2 text-blue-600"/> Order Items
                     </h4>
-                    <button type="button" onClick={() => setLpoItems([...lpoItems, { itemId: "", quantity: "", unitPrice: "" }])} className="text-xs font-bold text-bakery-brown hover:text-bakery-gold transition-colors px-3 py-1.5 bg-bakery-gold/10 rounded-lg">+ Add Item Row</button>
+                    <button type="button" onClick={() => setLpoItems([...lpoItems, { itemId: "", quantity: "", unitPrice: "" }])} className="text-xs font-bold text-blue-600 hover:text-blue-700 transition-colors px-3 py-1.5 bg-blue-50 rounded-lg">+ Add Item Row</button>
                   </div>
                   {lpoItems.map((item, index) => (
                     <div key={index} className="flex gap-2 items-start bg-zinc-50/50 p-4 rounded-xl border border-zinc-200 shadow-sm relative group">
