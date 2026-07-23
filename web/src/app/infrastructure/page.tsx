@@ -16,13 +16,14 @@ import {
 
 export default function InfrastructurePage() {
   return (
-    <div className="min-h-screen flex flex-col bg-stone-50 font-sans text-stone-900 selection:bg-bakery-gold selection:text-white">
+    // 1. Updated Main Wrapper with dark backgrounds and text
+    <div className="min-h-screen flex flex-col bg-stone-50 dark:bg-zinc-950 font-sans text-stone-900 dark:text-stone-200 selection:bg-bakery-gold selection:text-white transition-colors duration-300">
       
       <Header />
 
       <main className="flex-1">
         
-        {/* HERO SECTION */}
+        {/* HERO SECTION (Kept dark for impact) */}
         <section className="relative pt-24 pb-28 overflow-hidden bg-zinc-950">
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-zinc-800 via-zinc-950 to-black opacity-90"></div>
           <div className="absolute -right-40 -top-40 w-[35rem] h-[35rem] bg-bakery-gold/10 rounded-full blur-[120px]"></div>
@@ -47,7 +48,8 @@ export default function InfrastructurePage() {
         </section>
 
         {/* DETAILED PILLARS SECTION */}
-        <section className="py-24 bg-white relative">
+        {/* 2. Updated section background */}
+        <section className="py-24 bg-white dark:bg-zinc-950 relative transition-colors duration-300">
           <div className="max-w-7xl mx-auto px-6 space-y-24">
             
             {/* Pillar 1: Manufacturing & Production Control */}
@@ -56,17 +58,20 @@ export default function InfrastructurePage() {
                 <div className="w-14 h-14 bg-zinc-900 rounded-2xl flex items-center justify-center shadow-md">
                   <Factory className="w-7 h-7 text-bakery-gold" />
                 </div>
-                <h2 className="text-xs font-bold text-bakery-brown uppercase tracking-[0.2em]">Subsystem 01</h2>
-                <h3 className="text-3xl font-black text-zinc-900 tracking-tight">High-Capacity Manufacturing Control</h3>
-                <p className="text-stone-600 font-medium leading-relaxed">
+                <h2 className="text-xs font-bold text-bakery-brown dark:text-bakery-gold uppercase tracking-[0.2em]">Subsystem 01</h2>
+                {/* 3. Updated headings and text */}
+                <h3 className="text-3xl font-black text-zinc-900 dark:text-white tracking-tight">High-Capacity Manufacturing Control</h3>
+                <p className="text-stone-600 dark:text-stone-400 font-medium leading-relaxed">
                   Our bakery floors are governed by automated queue scheduling and precise recipe parsing protocols. From raw material intake to final batch cooling, every stage is tracked in real-time to guarantee consistent product standards.
                 </p>
-                <ul className="space-y-3 text-sm font-semibold text-stone-700">
+                <ul className="space-y-3 text-sm font-semibold text-stone-700 dark:text-stone-300">
                   <li className="flex items-center"><span className="w-2 h-2 rounded-full bg-bakery-gold mr-3"></span> Automated Recipe Scaling & Batch Management</li>
                   <li className="flex items-center"><span className="w-2 h-2 rounded-full bg-bakery-gold mr-3"></span> Real-time Yield Tracking & Waste Reduction</li>
                   <li className="flex items-center"><span className="w-2 h-2 rounded-full bg-bakery-gold mr-3"></span> Automated Purchase Orders (LPO) & Stock Replenishment</li>
                 </ul>
               </div>
+              
+              {/* (Kept dark to match the original design) */}
               <div className="bg-zinc-950 p-8 rounded-3xl border border-zinc-800 shadow-2xl relative overflow-hidden">
                 <div className="absolute right-0 bottom-0 w-64 h-64 bg-bakery-gold/5 rounded-full blur-3xl"></div>
                 <div className="space-y-4 relative z-10">
@@ -90,23 +95,24 @@ export default function InfrastructurePage() {
 
             {/* Pillar 2: Smart POS Network */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-              <div className="order-2 lg:order-1 bg-stone-50 p-8 rounded-3xl border border-stone-200 shadow-inner">
+              {/* 4. Updated light visual box with dark variants */}
+              <div className="order-2 lg:order-1 bg-stone-50 dark:bg-zinc-900/50 p-8 rounded-3xl border border-stone-200 dark:border-zinc-800 shadow-inner transition-colors duration-300">
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between pb-4 border-b border-stone-200">
-                    <span className="text-xs font-bold text-stone-500 uppercase tracking-widest">Retail Distribution Sync</span>
-                    <span className="px-2.5 py-1 bg-blue-500/10 text-blue-600 border border-blue-500/20 rounded text-xs font-bold">CLOUD LINKED</span>
+                  <div className="flex items-center justify-between pb-4 border-b border-stone-200 dark:border-zinc-800">
+                    <span className="text-xs font-bold text-stone-500 dark:text-stone-400 uppercase tracking-widest">Retail Distribution Sync</span>
+                    <span className="px-2.5 py-1 bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 rounded text-xs font-bold">CLOUD LINKED</span>
                   </div>
                   <div className="space-y-3">
-                    <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm flex justify-between items-center">
+                    <div className="bg-white dark:bg-zinc-800 p-4 rounded-xl border border-stone-200 dark:border-zinc-700 shadow-sm flex justify-between items-center transition-colors duration-300">
                       <div>
-                        <p className="text-sm font-bold text-zinc-900">Morogoro Main Branch POS</p>
+                        <p className="text-sm font-bold text-zinc-900 dark:text-white">Morogoro Main Branch POS</p>
                         <p className="text-xs text-stone-400">Status: Live Terminal</p>
                       </div>
                       <span className="w-3 h-3 rounded-full bg-emerald-500 animate-ping"></span>
                     </div>
-                    <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm flex justify-between items-center">
+                    <div className="bg-white dark:bg-zinc-800 p-4 rounded-xl border border-stone-200 dark:border-zinc-700 shadow-sm flex justify-between items-center transition-colors duration-300">
                       <div>
-                        <p className="text-sm font-bold text-zinc-900">Regional Distribution Hub</p>
+                        <p className="text-sm font-bold text-zinc-900 dark:text-white">Regional Distribution Hub</p>
                         <p className="text-xs text-stone-400">Status: Synchronized</p>
                       </div>
                       <span className="w-3 h-3 rounded-full bg-emerald-500"></span>
@@ -118,12 +124,12 @@ export default function InfrastructurePage() {
                 <div className="w-14 h-14 bg-zinc-900 rounded-2xl flex items-center justify-center shadow-md">
                   <Store className="w-7 h-7 text-bakery-gold" />
                 </div>
-                <h2 className="text-xs font-bold text-bakery-brown uppercase tracking-[0.2em]">Subsystem 02</h2>
-                <h3 className="text-3xl font-black text-zinc-900 tracking-tight">Cloud-Synced Retail POS Network</h3>
-                <p className="text-stone-600 font-medium leading-relaxed">
+                <h2 className="text-xs font-bold text-bakery-brown dark:text-bakery-gold uppercase tracking-[0.2em]">Subsystem 02</h2>
+                <h3 className="text-3xl font-black text-zinc-900 dark:text-white tracking-tight">Cloud-Synced Retail POS Network</h3>
+                <p className="text-stone-600 dark:text-stone-400 font-medium leading-relaxed">
                   Our retail points of sale are deployed across strategic branches. Every transaction instantly triggers localized inventory deductions, ensuring stock accuracy and eliminating discrepancy gaps between warehouse and storefront.
                 </p>
-                <ul className="space-y-3 text-sm font-semibold text-stone-700">
+                <ul className="space-y-3 text-sm font-semibold text-stone-700 dark:text-stone-300">
                   <li className="flex items-center"><span className="w-2 h-2 rounded-full bg-bakery-gold mr-3"></span> Instant Multi-Branch Inventory Deductions</li>
                   <li className="flex items-center"><span className="w-2 h-2 rounded-full bg-bakery-gold mr-3"></span> Secure Mobile Money & Card Integration</li>
                   <li className="flex items-center"><span className="w-2 h-2 rounded-full bg-bakery-gold mr-3"></span> Offline Resilience with Auto-Sync Recovery</li>
@@ -137,17 +143,19 @@ export default function InfrastructurePage() {
                 <div className="w-14 h-14 bg-zinc-900 rounded-2xl flex items-center justify-center shadow-md">
                   <LineChart className="w-7 h-7 text-bakery-gold" />
                 </div>
-                <h2 className="text-xs font-bold text-bakery-brown uppercase tracking-[0.2em]">Subsystem 03</h2>
-                <h3 className="text-3xl font-black text-zinc-900 tracking-tight">Rigorous Financial Ledgers</h3>
-                <p className="text-stone-600 font-medium leading-relaxed">
+                <h2 className="text-xs font-bold text-bakery-brown dark:text-bakery-gold uppercase tracking-[0.2em]">Subsystem 03</h2>
+                <h3 className="text-3xl font-black text-zinc-900 dark:text-white tracking-tight">Rigorous Financial Ledgers</h3>
+                <p className="text-stone-600 dark:text-stone-400 font-medium leading-relaxed">
                   Accounting at Antique Oven Ltd follows strict corporate protocols. Automated double-entry ledgers track every asset, liability, and revenue stream, generating clean tax liability and Profit & Loss reports on demand.
                 </p>
-                <ul className="space-y-3 text-sm font-semibold text-stone-700">
+                <ul className="space-y-3 text-sm font-semibold text-stone-700 dark:text-stone-300">
                   <li className="flex items-center"><span className="w-2 h-2 rounded-full bg-bakery-gold mr-3"></span> Automated VAT & Tourism Levy Calculations</li>
                   <li className="flex items-center"><span className="w-2 h-2 rounded-full bg-bakery-gold mr-3"></span> Accounts Payable (Creditors) & Aging Reports</li>
                   <li className="flex items-center"><span className="w-2 h-2 rounded-full bg-bakery-gold mr-3"></span> Role-Based Access Control (RBAC) Security</li>
                 </ul>
               </div>
+              
+              {/* (Kept dark to match the original design) */}
               <div className="bg-zinc-950 p-8 rounded-3xl border border-zinc-800 shadow-2xl relative overflow-hidden">
                 <div className="absolute left-0 top-0 w-64 h-64 bg-blue-600/10 rounded-full blur-3xl"></div>
                 <div className="space-y-4 relative z-10">
@@ -172,7 +180,7 @@ export default function InfrastructurePage() {
           </div>
         </section>
 
-        {/* CALL TO ACTION BANNER */}
+        {/* CALL TO ACTION BANNER (Kept dark) */}
         <section className="py-20 bg-zinc-950 border-t border-zinc-900 text-center">
           <div className="max-w-4xl mx-auto px-6 space-y-6">
             <h2 className="text-3xl md:text-4xl font-black text-white tracking-tight">Ready to access the operational core?</h2>

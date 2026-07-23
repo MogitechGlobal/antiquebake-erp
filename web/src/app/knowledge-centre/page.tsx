@@ -14,13 +14,14 @@ import {
 
 export default function KnowledgeCentrePage() {
   return (
-    <div className="min-h-screen flex flex-col bg-stone-50 font-sans text-stone-900 selection:bg-bakery-gold selection:text-white">
+    // 1. Updated Main Wrapper with dark backgrounds and text
+    <div className="min-h-screen flex flex-col bg-stone-50 dark:bg-zinc-950 font-sans text-stone-900 dark:text-stone-200 selection:bg-bakery-gold selection:text-white transition-colors duration-300">
       
       <Header />
 
       <main className="flex-1">
         
-        {/* HERO SECTION */}
+        {/* HERO SECTION (Kept dark) */}
         <section className="relative pt-24 pb-28 overflow-hidden bg-zinc-950">
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-zinc-800 via-zinc-950 to-black opacity-90"></div>
           <div className="absolute -left-40 -top-40 w-[35rem] h-[35rem] bg-bakery-gold/10 rounded-full blur-[120px]"></div>
@@ -45,20 +46,23 @@ export default function KnowledgeCentrePage() {
         </section>
 
         {/* RESOURCES GRID */}
-        <section className="py-24 bg-white relative">
+        {/* 2. Updated section background */}
+        <section className="py-24 bg-white dark:bg-zinc-950 relative transition-colors duration-300">
           <div className="max-w-7xl mx-auto px-6">
             
             <div className="flex flex-col md:flex-row justify-between items-center mb-16 gap-6">
               <div>
-                <h2 className="text-xs font-bold text-bakery-brown uppercase tracking-[0.2em] mb-2">Documentation Library</h2>
-                <h3 className="text-3xl font-black text-zinc-900 tracking-tight">Featured Publications & Manuals</h3>
+                <h2 className="text-xs font-bold text-bakery-brown dark:text-bakery-gold uppercase tracking-[0.2em] mb-2">Documentation Library</h2>
+                {/* 3. Updated headings */}
+                <h3 className="text-3xl font-black text-zinc-900 dark:text-white tracking-tight">Featured Publications & Manuals</h3>
               </div>
               <div className="relative w-full md:w-80">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 dark:text-stone-500" />
+                {/* 4. Updated search input for dark mode */}
                 <input 
                   type="text" 
                   placeholder="Search resources..." 
-                  className="w-full pl-10 pr-4 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:ring-2 focus:ring-bakery-gold outline-none"
+                  className="w-full pl-10 pr-4 py-2.5 bg-stone-50 dark:bg-zinc-900 border border-stone-200 dark:border-zinc-800 rounded-xl text-sm text-stone-900 dark:text-stone-200 focus:ring-2 focus:ring-bakery-gold outline-none transition-colors duration-300 placeholder:text-stone-400 dark:placeholder:text-stone-600"
                 />
               </div>
             </div>
@@ -66,60 +70,61 @@ export default function KnowledgeCentrePage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               
               {/* Resource Card 1 */}
-              <div className="bg-stone-50 p-8 rounded-2xl border border-stone-200 hover:shadow-xl hover:border-bakery-gold/40 transition-all duration-300 flex flex-col justify-between group">
+              {/* 5. Updated Resource Cards background, border, and text */}
+              <div className="bg-stone-50 dark:bg-zinc-900/50 p-8 rounded-2xl border border-stone-200 dark:border-zinc-800 hover:shadow-xl hover:border-bakery-gold/40 dark:hover:border-bakery-gold/40 transition-all duration-300 flex flex-col justify-between group">
                 <div className="space-y-4">
                   <div className="w-12 h-12 bg-zinc-900 rounded-xl flex items-center justify-center shadow-md">
                     <BookOpen className="w-6 h-6 text-bakery-gold" />
                   </div>
-                  <span className="inline-block px-2.5 py-1 bg-bakery-gold/10 text-bakery-brown text-xs font-bold rounded">Standard Operating Procedure</span>
-                  <h4 className="text-xl font-bold text-zinc-900 group-hover:text-bakery-brown transition-colors">Bakery Floor Safety & Hygiene Manual 2026</h4>
-                  <p className="text-stone-600 text-sm font-medium leading-relaxed">
+                  <span className="inline-block px-2.5 py-1 bg-bakery-gold/10 text-bakery-brown dark:text-bakery-gold text-xs font-bold rounded">Standard Operating Procedure</span>
+                  <h4 className="text-xl font-bold text-zinc-900 dark:text-white group-hover:text-bakery-brown dark:group-hover:text-bakery-gold transition-colors">Bakery Floor Safety & Hygiene Manual 2026</h4>
+                  <p className="text-stone-600 dark:text-stone-400 text-sm font-medium leading-relaxed">
                     Comprehensive guidelines on sanitation, high-temperature equipment handling, and personal protective gear across all branches.
                   </p>
                 </div>
-                <div className="pt-6 mt-6 border-t border-stone-200 flex items-center justify-between">
+                <div className="pt-6 mt-6 border-t border-stone-200 dark:border-zinc-800 flex items-center justify-between">
                   <span className="text-xs font-bold text-stone-400 uppercase">PDF • 4.2 MB</span>
-                  <button className="flex items-center text-xs font-bold text-zinc-900 hover:text-bakery-brown transition-colors uppercase tracking-wider">
+                  <button className="flex items-center text-xs font-bold text-zinc-900 dark:text-white hover:text-bakery-brown dark:hover:text-bakery-gold transition-colors uppercase tracking-wider">
                     Download <Download className="w-3.5 h-3.5 ml-1.5" />
                   </button>
                 </div>
               </div>
 
               {/* Resource Card 2 */}
-              <div className="bg-stone-50 p-8 rounded-2xl border border-stone-200 hover:shadow-xl hover:border-bakery-gold/40 transition-all duration-300 flex flex-col justify-between group">
+              <div className="bg-stone-50 dark:bg-zinc-900/50 p-8 rounded-2xl border border-stone-200 dark:border-zinc-800 hover:shadow-xl hover:border-bakery-gold/40 dark:hover:border-bakery-gold/40 transition-all duration-300 flex flex-col justify-between group">
                 <div className="space-y-4">
                   <div className="w-12 h-12 bg-zinc-900 rounded-xl flex items-center justify-center shadow-md">
                     <GraduationCap className="w-6 h-6 text-bakery-gold" />
                   </div>
-                  <span className="inline-block px-2.5 py-1 bg-blue-500/10 text-blue-700 text-xs font-bold rounded">Staff Training Guide</span>
-                  <h4 className="text-xl font-bold text-zinc-900 group-hover:text-bakery-brown transition-colors">POS Terminal Operation & Inventory Sync</h4>
-                  <p className="text-stone-600 text-sm font-medium leading-relaxed">
+                  <span className="inline-block px-2.5 py-1 bg-blue-500/10 text-blue-700 dark:text-blue-400 text-xs font-bold rounded">Staff Training Guide</span>
+                  <h4 className="text-xl font-bold text-zinc-900 dark:text-white group-hover:text-bakery-brown dark:group-hover:text-bakery-gold transition-colors">POS Terminal Operation & Inventory Sync</h4>
+                  <p className="text-stone-600 dark:text-stone-400 text-sm font-medium leading-relaxed">
                     Step-by-step training material for cashiers and store keepers managing real-time stock deductions and sales receipts.
                   </p>
                 </div>
-                <div className="pt-6 mt-6 border-t border-stone-200 flex items-center justify-between">
+                <div className="pt-6 mt-6 border-t border-stone-200 dark:border-zinc-800 flex items-center justify-between">
                   <span className="text-xs font-bold text-stone-400 uppercase">PDF • 2.8 MB</span>
-                  <button className="flex items-center text-xs font-bold text-zinc-900 hover:text-bakery-brown transition-colors uppercase tracking-wider">
+                  <button className="flex items-center text-xs font-bold text-zinc-900 dark:text-white hover:text-bakery-brown dark:hover:text-bakery-gold transition-colors uppercase tracking-wider">
                     Download <Download className="w-3.5 h-3.5 ml-1.5" />
                   </button>
                 </div>
               </div>
 
               {/* Resource Card 3 */}
-              <div className="bg-stone-50 p-8 rounded-2xl border border-stone-200 hover:shadow-xl hover:border-bakery-gold/40 transition-all duration-300 flex flex-col justify-between group">
+              <div className="bg-stone-50 dark:bg-zinc-900/50 p-8 rounded-2xl border border-stone-200 dark:border-zinc-800 hover:shadow-xl hover:border-bakery-gold/40 dark:hover:border-bakery-gold/40 transition-all duration-300 flex flex-col justify-between group">
                 <div className="space-y-4">
                   <div className="w-12 h-12 bg-zinc-900 rounded-xl flex items-center justify-center shadow-md">
                     <Lightbulb className="w-6 h-6 text-bakery-gold" />
                   </div>
-                  <span className="inline-block px-2.5 py-1 bg-emerald-500/10 text-emerald-700 text-xs font-bold rounded">Manufacturing Whitepaper</span>
-                  <h4 className="text-xl font-bold text-zinc-900 group-hover:text-bakery-brown transition-colors">Recipe Scaling & Yield Optimization</h4>
-                  <p className="text-stone-600 text-sm font-medium leading-relaxed">
+                  <span className="inline-block px-2.5 py-1 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-xs font-bold rounded">Manufacturing Whitepaper</span>
+                  <h4 className="text-xl font-bold text-zinc-900 dark:text-white group-hover:text-bakery-brown dark:group-hover:text-bakery-gold transition-colors">Recipe Scaling & Yield Optimization</h4>
+                  <p className="text-stone-600 dark:text-stone-400 text-sm font-medium leading-relaxed">
                     Advanced analytical frameworks for master bakers to minimize raw material wastage during high-volume production cycles.
                   </p>
                 </div>
-                <div className="pt-6 mt-6 border-t border-stone-200 flex items-center justify-between">
+                <div className="pt-6 mt-6 border-t border-stone-200 dark:border-zinc-800 flex items-center justify-between">
                   <span className="text-xs font-bold text-stone-400 uppercase">PDF • 5.1 MB</span>
-                  <button className="flex items-center text-xs font-bold text-zinc-900 hover:text-bakery-brown transition-colors uppercase tracking-wider">
+                  <button className="flex items-center text-xs font-bold text-zinc-900 dark:text-white hover:text-bakery-brown dark:hover:text-bakery-gold transition-colors uppercase tracking-wider">
                     Download <Download className="w-3.5 h-3.5 ml-1.5" />
                   </button>
                 </div>
@@ -130,7 +135,7 @@ export default function KnowledgeCentrePage() {
           </div>
         </section>
 
-        {/* PORTAL ACCESS BANNER */}
+        {/* PORTAL ACCESS BANNER (Kept dark) */}
         <section className="py-20 bg-zinc-950 border-t border-zinc-900 text-center">
           <div className="max-w-4xl mx-auto px-6 space-y-6">
             <h2 className="text-3xl md:text-4xl font-black text-white tracking-tight">Need internal corporate records?</h2>

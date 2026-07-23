@@ -14,13 +14,14 @@ import {
 
 export default function AboutPage() {
   return (
-    <div className="min-h-screen flex flex-col bg-stone-50 font-sans text-stone-900 selection:bg-bakery-gold selection:text-white">
+    // 1. Updated Main Wrapper with dark backgrounds and text
+    <div className="min-h-screen flex flex-col bg-stone-50 dark:bg-zinc-950 font-sans text-stone-900 dark:text-stone-200 selection:bg-bakery-gold selection:text-white transition-colors duration-300">
       
       <Header />
 
       <main className="flex-1">
         
-        {/* HERO SECTION */}
+        {/* HERO SECTION (Kept dark for consistency) */}
         <section className="relative pt-24 pb-28 overflow-hidden bg-zinc-950">
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-zinc-800 via-zinc-950 to-black opacity-90"></div>
           <div className="absolute -right-40 -top-40 w-[35rem] h-[35rem] bg-bakery-gold/10 rounded-full blur-[120px]"></div>
@@ -45,30 +46,34 @@ export default function AboutPage() {
         </section>
 
         {/* CORPORATE OVERVIEW */}
-        <section className="py-24 bg-white relative">
+        {/* 2. Updated section background */}
+        <section className="py-24 bg-white dark:bg-zinc-950 relative transition-colors duration-300">
           <div className="max-w-7xl mx-auto px-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
               <div className="space-y-6">
                 <div className="w-14 h-14 bg-zinc-900 rounded-2xl flex items-center justify-center shadow-md">
                   <Building2 className="w-7 h-7 text-bakery-gold" />
                 </div>
-                <h2 className="text-xs font-bold text-bakery-brown uppercase tracking-[0.2em]">The Bakery Master</h2>
-                <h3 className="text-3xl font-black text-zinc-900 tracking-tight">Excellence in Enterprise Baking Since Inception</h3>
-                <p className="text-stone-600 font-medium leading-relaxed">
+                <h2 className="text-xs font-bold text-bakery-brown dark:text-bakery-gold uppercase tracking-[0.2em]">The Bakery Master</h2>
+                {/* 3. Updated headings and text */}
+                <h3 className="text-3xl font-black text-zinc-900 dark:text-white tracking-tight">Excellence in Enterprise Baking Since Inception</h3>
+                <p className="text-stone-600 dark:text-stone-400 font-medium leading-relaxed">
                   Antique Oven Ltd has grown into a premier food manufacturing and distribution enterprise. Based in Morogoro, Tanzania, our operations seamlessly bridge traditional baking craftsmanship with cutting-edge ERP systems, rigorous financial protocols, and high-capacity automated production lines.
                 </p>
                 <div className="grid grid-cols-2 gap-6 pt-4">
-                  <div className="bg-stone-50 p-5 rounded-2xl border border-stone-200">
-                    <p className="text-3xl font-black text-zinc-900">100%</p>
-                    <p className="text-xs text-stone-500 font-bold uppercase tracking-wider mt-1">Quality Commitment</p>
+                  {/* 4. Updated stat cards */}
+                  <div className="bg-stone-50 dark:bg-zinc-900/50 p-5 rounded-2xl border border-stone-200 dark:border-zinc-800 transition-colors duration-300">
+                    <p className="text-3xl font-black text-zinc-900 dark:text-white">100%</p>
+                    <p className="text-xs text-stone-500 dark:text-stone-400 font-bold uppercase tracking-wider mt-1">Quality Commitment</p>
                   </div>
-                  <div className="bg-stone-50 p-5 rounded-2xl border border-stone-200">
-                    <p className="text-3xl font-black text-bakery-brown">Multi-Branch</p>
-                    <p className="text-xs text-stone-500 font-bold uppercase tracking-wider mt-1">Retail Distribution</p>
+                  <div className="bg-stone-50 dark:bg-zinc-900/50 p-5 rounded-2xl border border-stone-200 dark:border-zinc-800 transition-colors duration-300">
+                    <p className="text-3xl font-black text-bakery-brown dark:text-bakery-gold">Multi-Branch</p>
+                    <p className="text-xs text-stone-500 dark:text-stone-400 font-bold uppercase tracking-wider mt-1">Retail Distribution</p>
                   </div>
                 </div>
               </div>
 
+              {/* (Kept dark to match the original design) */}
               <div className="bg-zinc-950 p-10 rounded-3xl border border-zinc-800 shadow-2xl relative overflow-hidden">
                 <div className="absolute right-0 bottom-0 w-64 h-64 bg-bakery-gold/5 rounded-full blur-3xl"></div>
                 <div className="space-y-6 relative z-10 text-stone-300">
@@ -94,26 +99,28 @@ export default function AboutPage() {
         </section>
 
         {/* MISSION & VISION */}
-        <section className="py-24 bg-stone-50 border-t border-stone-200">
+        {/* 5. Updated background and border for the section */}
+        <section className="py-24 bg-stone-50 dark:bg-zinc-950 border-t border-stone-200 dark:border-zinc-800 transition-colors duration-300">
           <div className="max-w-7xl mx-auto px-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               
-              <div className="bg-white p-10 rounded-3xl border border-stone-200 shadow-sm space-y-6">
+              {/* 6. Updated cards */}
+              <div className="bg-white dark:bg-zinc-900 p-10 rounded-3xl border border-stone-200 dark:border-zinc-800 shadow-sm space-y-6 transition-colors duration-300">
                 <div className="w-12 h-12 bg-bakery-gold/10 rounded-xl flex items-center justify-center">
-                  <Target className="w-6 h-6 text-bakery-brown" />
+                  <Target className="w-6 h-6 text-bakery-brown dark:text-bakery-gold" />
                 </div>
-                <h3 className="text-2xl font-black text-zinc-900 tracking-tight">Our Mission</h3>
-                <p className="text-stone-600 font-medium leading-relaxed">
+                <h3 className="text-2xl font-black text-zinc-900 dark:text-white tracking-tight">Our Mission</h3>
+                <p className="text-stone-600 dark:text-stone-400 font-medium leading-relaxed">
                   To deliver exceptional, high-quality bakery products to every household and establishment across East Africa while maintaining operational leadership through state-of-the-art enterprise manufacturing systems.
                 </p>
               </div>
 
-              <div className="bg-white p-10 rounded-3xl border border-stone-200 shadow-sm space-y-6">
+              <div className="bg-white dark:bg-zinc-900 p-10 rounded-3xl border border-stone-200 dark:border-zinc-800 shadow-sm space-y-6 transition-colors duration-300">
                 <div className="w-12 h-12 bg-bakery-gold/10 rounded-xl flex items-center justify-center">
-                  <Eye className="w-6 h-6 text-bakery-brown" />
+                  <Eye className="w-6 h-6 text-bakery-brown dark:text-bakery-gold" />
                 </div>
-                <h3 className="text-2xl font-black text-zinc-900 tracking-tight">Our Vision</h3>
-                <p className="text-stone-600 font-medium leading-relaxed">
+                <h3 className="text-2xl font-black text-zinc-900 dark:text-white tracking-tight">Our Vision</h3>
+                <p className="text-stone-600 dark:text-stone-400 font-medium leading-relaxed">
                   To set the absolute benchmark for corporate food manufacturing in Tanzania, combining artisanal excellence with transparent financial management, robust supply chains, and sustainable regional growth.
                 </p>
               </div>
@@ -122,7 +129,7 @@ export default function AboutPage() {
           </div>
         </section>
 
-        {/* PORTAL ACCESS BANNER */}
+        {/* PORTAL ACCESS BANNER (Kept dark for consistency) */}
         <section className="py-20 bg-zinc-950 border-t border-zinc-900 text-center">
           <div className="max-w-4xl mx-auto px-6 space-y-6">
             <h2 className="text-3xl md:text-4xl font-black text-white tracking-tight">Explore Our Infrastructure</h2>
