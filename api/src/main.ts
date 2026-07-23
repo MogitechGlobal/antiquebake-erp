@@ -5,31 +5,35 @@ import { ValidationPipe } from '@nestjs/common';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // 1. Configure CORS for both local development and Cloudflare Pages
-  const allowedOrigins = [
-    'http://localhost:3000',
-    'https://antiquebake-erp.pages.dev'
-  ];
-
+  // --- 1. CONFIGURE CORS ---
   app.enableCors({
-    origin: allowedOrigins,
+    origin: [
+      'https://antiqueoven.mogitechglobal.com',
+      'https://www.antiqueoven.mogitechglobal.com',
+      'https://antiquebake-erp.pages.dev', 
+      'http://localhost:3000',             
+    ],
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
+    allowedHeaders: 'Content-Type, Accept, Authorization',
   });
 
-  // 2. Enable Global Security Validation
+  // --- 2. GLOBAL PIPES ---
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: true, // Strips away any properties without decorators
-      forbidNonWhitelisted: true, // Throws an error if extra properties are sent
-      transform: true, // Automatically transforms payloads to DTO instances
+      whitelist: true,
+      transform: true,
     }),
   );
 
-  // 3. Set an API Prefix to match the Frontend Axios requests
+  // --- 3. GLOBAL PREFIX ---
+  // This automatically prepends '/api/v1' to every controller in the app
   app.setGlobalPrefix('api/v1');
 
-  // 4. Bind to Render's dynamic PORT, fallback to 3001 locally
+  // --- 4. START SERVER ---
   const port = process.env.PORT || 3001;
   await app.listen(port);
+  console.log(`Backend API is running on: ${await app.getUrl()}`);
 }
+
 bootstrap();
