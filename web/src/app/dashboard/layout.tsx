@@ -28,7 +28,7 @@ import {
 const ADMINS = ["Super Admin", "Admin"];
 const MANAGERS = [...ADMINS, "Branch Manager", "Accountant"];
 const POS_STAFF = [...MANAGERS, "Cashier", "Sales Personel"];
-const INVENTORY_STAFF = [...MANAGERS, "Inventory Clerk"];
+const INVENTORY_STAFF = [...MANAGERS, "Inventory Manager", "Inventory Clerk"];
 const KITCHEN_STAFF = [
   ...MANAGERS, 
   "Baker", 
@@ -71,11 +71,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
     { header: "COMMERCE & SALES", allowedRoles: POS_STAFF },
     { name: "Smart POS", href: "/dashboard/pos", icon: ShoppingCart, allowedRoles: POS_STAFF },
-    { name: "Order Fulfillment", href: "/dashboard/orders", icon: FileText, allowedRoles: [...POS_STAFF, ...KITCHEN_STAFF] },
+    { name: "Order Fulfillment", href: "/dashboard/orders", icon: FileText, allowedRoles: MANAGERS },
 
     { header: "SUPPLY CHAIN", allowedRoles: [...INVENTORY_STAFF, ...KITCHEN_STAFF] },
     { name: "Inventory Control", href: "/dashboard/inventory", icon: PackageSearch, allowedRoles: INVENTORY_STAFF },
-    { name: "Production & Recipes", href: "/dashboard/production", icon: Factory, allowedRoles: KITCHEN_STAFF },
+    { name: "Production & Recipes", href: "/dashboard/production", icon: Factory, allowedRoles: ["Inventory Manager", ...KITCHEN_STAFF] },
     { name: "Procurement (LPO)", href: "/dashboard/procurement", icon: Truck, allowedRoles: INVENTORY_STAFF },
 
     { header: "FINANCIAL MANAGEMENT", allowedRoles: MANAGERS },
