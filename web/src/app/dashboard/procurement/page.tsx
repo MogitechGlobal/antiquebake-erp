@@ -23,7 +23,8 @@ import {
   Mail,
   AlertCircle,
   RotateCcw,
-  Info
+  Info,
+  ChevronDown
 } from "lucide-react";
 
 // --- INTERFACES ---
@@ -53,7 +54,6 @@ interface POItem {
 interface PurchaseOrder {
   id: string;
   poNumber: string;
-  // Added PENDING to handle default backend creation state
   status: 'DRAFT' | 'PENDING' | 'APPROVED' | 'RECEIVED' | 'CANCELLED'; 
   totalAmount: number;
   createdAt: string;
@@ -90,6 +90,10 @@ export default function ProcurementDashboardPage() {
   const [lpoForm, setLpoForm] = useState({ supplierId: "", isDirectGrn: false });
   const [lpoItems, setLpoItems] = useState([{ itemId: "", quantity: "", unitPrice: "" }]);
   const [receiveForm, setReceiveForm] = useState({ deliveryNote: "", file: null as File | null });
+
+  // Custom Searchable Select State
+  const [openItemSelectIndex, setOpenItemSelectIndex] = useState<number | null>(null);
+  const [itemSearchText, setItemSearchText] = useState("");
 
   const axiosConfig = useMemo(() => ({ headers: { Authorization: `Bearer ${token}` } }), [token]);
 
@@ -189,6 +193,7 @@ export default function ProcurementDashboardPage() {
       
       setLpoForm({ supplierId: "", isDirectGrn: false });
       setLpoItems([{ itemId: "", quantity: "", unitPrice: "" }]);
+      setOpenItemSelectIndex(null);
       fetchProcurementData();
       setIsLpoModalOpen(false);
       setIsDirectGrnModalOpen(false);
@@ -680,7 +685,7 @@ export default function ProcurementDashboardPage() {
       {/* --- GENERATE LPO / DIRECT GRN MODAL --- */}
       {(isLpoModalOpen || isDirectGrnModalOpen) && (
         <div className="fixed inset-0 z-50 flex justify-end print:hidden">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => { setIsLpoModalOpen(false); setIsDirectGrnModalOpen(false); }} />
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => { setIsLpoModalOpen(false); setIsDirectGrnModalOpen(false); setOpenItemSelectIndex(null); }} />
           <div className="relative w-full max-w-xl bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
             <div className={`px-6 py-5 border-b border-zinc-200 flex items-center justify-between ${lpoForm.isDirectGrn ? 'bg-emerald-50' : 'bg-zinc-50'}`}>
               <div>
@@ -691,7 +696,7 @@ export default function ProcurementDashboardPage() {
                     {lpoForm.isDirectGrn ? 'Instantly update inventory levels.' : 'Create a new order pending delivery.'}
                  </p>
               </div>
-              <button onClick={() => { setIsLpoModalOpen(false); setIsDirectGrnModalOpen(false); }} className="p-2 text-zinc-400 hover:text-zinc-900 bg-white rounded-full shadow-sm"><X className="w-5 h-5" /></button>
+              <button onClick={() => { setIsLpoModalOpen(false); setIsDirectGrnModalOpen(false); setOpenItemSelectIndex(null); }} className="p-2 text-zinc-400 hover:text-zinc-900 bg-white rounded-full shadow-sm"><X className="w-5 h-5" /></button>
             </div>
             
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
@@ -713,16 +718,89 @@ export default function ProcurementDashboardPage() {
                   </div>
                   {lpoItems.map((item, index) => (
                     <div key={index} className="flex gap-2 items-start bg-zinc-50/50 p-4 rounded-xl border border-zinc-200 shadow-sm relative group">
-                      <div className="flex-1">
-                        <select required value={item.itemId} onChange={e => {
-                          const newItems = [...lpoItems]; newItems[index].itemId = e.target.value; setLpoItems(newItems);
-                        }} className="w-full px-3 py-2.5 bg-white border border-zinc-300 rounded-lg text-sm font-medium">
-                          <option value="">Select item...</option>
-                          {catalog.filter(c => c.category === 'RAW_MATERIAL' || c.category === 'PACKAGING').map(c => (
-                            <option key={c.id} value={c.id}>{c.name} ({c.unit})</option>
-                          ))}
-                        </select>
+                      
+                      {/* --- CUSTOM SEARCHABLE DROPDOWN --- */}
+                      <div className="flex-1 relative">
+                        {/* Dropdown Toggle */}
+                        <div 
+                          onClick={() => {
+                            if (openItemSelectIndex === index) {
+                              setOpenItemSelectIndex(null);
+                            } else {
+                              setOpenItemSelectIndex(index);
+                              setItemSearchText(""); // reset search on open
+                            }
+                          }}
+                          className="w-full px-3 py-2.5 bg-white border border-zinc-300 rounded-lg text-sm font-medium cursor-pointer flex justify-between items-center hover:bg-zinc-50 transition-colors"
+                        >
+                          <span className={item.itemId ? "text-zinc-900 truncate" : "text-zinc-500 truncate"}>
+                            {item.itemId 
+                              ? (() => {
+                                  const found = catalog.find(c => c.id === item.itemId);
+                                  return found ? `${found.name} (${found.unit})` : "Select item...";
+                                })()
+                              : "Select item..."}
+                          </span>
+                          <ChevronDown className="w-4 h-4 text-zinc-400 flex-shrink-0 ml-2" />
+                        </div>
+
+                        {/* Dropdown Menu */}
+                        {openItemSelectIndex === index && (
+                          <>
+                            {/* Invisible overlay for capturing outside clicks */}
+                            <div 
+                              className="fixed inset-0 z-40" 
+                              onClick={() => setOpenItemSelectIndex(null)}
+                            />
+                            <div className="absolute z-50 w-full mt-1 bg-white border border-zinc-200 rounded-xl shadow-xl flex flex-col">
+                              {/* Search Input */}
+                              <div className="p-2 border-b border-zinc-100 bg-white rounded-t-xl relative z-50">
+                                <div className="relative">
+                                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400" />
+                                  <input 
+                                    type="text" 
+                                    className="w-full pl-8 pr-3 py-2 bg-zinc-50 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                                    placeholder="Search item..." 
+                                    value={itemSearchText}
+                                    onChange={(e) => setItemSearchText(e.target.value)}
+                                    autoFocus
+                                  />
+                                </div>
+                              </div>
+                              {/* Scrollable Item List */}
+                              <div className="overflow-y-auto max-h-48 p-1 custom-scrollbar relative z-50 bg-white rounded-b-xl">
+                                {catalog
+                                  .filter(c => c.category === 'RAW_MATERIAL' || c.category === 'PACKAGING')
+                                  .filter(c => c.name.toLowerCase().includes(itemSearchText.toLowerCase()))
+                                  .map(c => (
+                                    <div 
+                                      key={c.id} 
+                                      onClick={() => {
+                                        const newItems = [...lpoItems]; 
+                                        newItems[index].itemId = c.id; 
+                                        setLpoItems(newItems);
+                                        setOpenItemSelectIndex(null);
+                                      }}
+                                      className={`px-3 py-2 text-sm rounded-lg cursor-pointer transition-colors ${
+                                        item.itemId === c.id ? "bg-blue-50 text-blue-700 font-bold" : "hover:bg-zinc-50 text-zinc-700 font-medium"
+                                      }`}
+                                    >
+                                      {c.name} <span className="text-zinc-400 font-normal text-xs ml-1">({c.unit})</span>
+                                    </div>
+                                  ))}
+                                  {catalog
+                                    .filter(c => c.category === 'RAW_MATERIAL' || c.category === 'PACKAGING')
+                                    .filter(c => c.name.toLowerCase().includes(itemSearchText.toLowerCase())).length === 0 && (
+                                      <div className="px-3 py-4 text-center text-sm text-zinc-500">
+                                        No items found.
+                                      </div>
+                                  )}
+                              </div>
+                            </div>
+                          </>
+                        )}
                       </div>
+                      
                       <input type="number" min="0.01" step="0.01" required placeholder="Qty" value={item.quantity} onChange={e => {
                           const newItems = [...lpoItems]; newItems[index].quantity = e.target.value; setLpoItems(newItems);
                       }} className="w-24 px-3 py-2.5 bg-white border border-zinc-300 rounded-lg text-sm font-medium" />
