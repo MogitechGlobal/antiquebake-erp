@@ -84,8 +84,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       icon: Landmark,
       allowedRoles: MANAGERS,
       subItems: [
-        { name: "General Ledger (GL)", href: "/dashboard/accounting/ledger", allowedRoles: ADMINS },
-        { name: "Chart of Accounts", href: "/dashboard/accounting/chart", allowedRoles: ADMINS },
+        { name: "General Ledger (GL)", href: "/dashboard/accounting/ledger", allowedRoles: MANAGERS },
+        { name: "Chart of Accounts", href: "/dashboard/accounting/chart", allowedRoles: MANAGERS },
         { name: "Revenue Analytics", href: "/dashboard/accounting/reports", allowedRoles: MANAGERS },
         { name: "Cash Flow", href: "/dashboard/accounting/cashflow", allowedRoles: MANAGERS },
         { name: "Tax Report", href: "/dashboard/accounting/tax", allowedRoles: MANAGERS },
@@ -103,7 +103,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       subItems: [
         { name: "Staff Directory", href: "/dashboard/hr", allowedRoles: MANAGERS },
         { name: "Attendance & Leave", href: "/dashboard/hr/attendance", allowedRoles: MANAGERS },
-        { name: "Payroll & Benefits", href: "/dashboard/hr/payroll", allowedRoles: ADMINS }
+        { name: "Payroll & Benefits", href: "/dashboard/hr/payroll", allowedRoles: MANAGERS }
       ]
     },
 
