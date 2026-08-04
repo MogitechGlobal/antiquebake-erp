@@ -47,7 +47,7 @@ export default function LedgerDashboardPage() {
 
   // Cloudinary Configuration from .env
   const CLOUDINARY_CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-  const CLOUDINARY_UPLOAD_PRESET = "erp_receipts"; // You MUST create this "Unsigned" preset in Cloudinary settings
+  const CLOUDINARY_UPLOAD_PRESET = "erp_receipts"; 
 
   // Data State
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -91,29 +91,115 @@ export default function LedgerDashboardPage() {
 
   const axiosConfig = useMemo(() => ({ headers: { Authorization: `Bearer ${token}` } }), [token]);
 
-  // Simulated data fetch based on PHP backend structure requirements
+  // Fetches both Manual Ledger data and POS Sales data
   const fetchLedgerData = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Fetch ledger data and accounts concurrently
-      const [ledgerRes, accountsRes] = await Promise.all([
+      const [ledgerRes, accountsRes, posRes] = await Promise.all([
         axios.get(`${API_URL}/api/v1/accounting/ledger/legacy-format`, {
           ...axiosConfig,
           params: { period, dept, staff, start: customStart, end: customEnd }
         }).catch(() => ({
-          data: {
-            transactions: [],
-            opening_balance: 0,
-            staff_list: [],
-          }
+          data: { transactions: [], opening_balance: 0, staff_list: [] }
         })),
         axios.get(`${API_URL}/api/v1/accounting/accounts`, axiosConfig).catch(() => ({
           data: { accounts: [] }
-        }))
+        })),
+        user?.branchId 
+          ? axios.get(`${API_URL}/api/v1/pos/transactions/${user.branchId}`, axiosConfig).catch(() => ({ data: [] }))
+          : Promise.resolve({ data: [] })
       ]);
 
-      setTransactions(ledgerRes.data.transactions || []);
-      setOpeningBalance(ledgerRes.data.opening_balance || 0);
+      const manualTransactions = ledgerRes.data.transactions || [];
+      let posTransactions: Transaction[] = [];
+      let posOpeningBalanceOffset = 0;
+
+      if (posRes.data && Array.isArray(posRes.data)) {
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const startOfWeek = new Date(today);
+        startOfWeek.setDate(today.getDate() - today.getDay());
+        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        const startOfLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        const endOfLastMonth = new Date(today.getFullYear(), today.getMonth(), 0, 23, 59, 59, 999);
+        const startOfYear = new Date(today.getFullYear(), 0, 1);
+
+        posTransactions = posRes.data.filter((sale: any) => {
+          if (sale.status === 'CANCELLED') return false; 
+          
+          const saleDate = new Date(sale.createdAt);
+          let dateMatch = true;
+          let isBeforePeriod = false;
+
+          // Date Matching & Historic Balance calculations
+          if (period === 'today') {
+              dateMatch = saleDate >= today;
+              isBeforePeriod = saleDate < today;
+          } else if (period === 'yesterday') {
+              dateMatch = saleDate >= yesterday && saleDate < today;
+              isBeforePeriod = saleDate < yesterday;
+          } else if (period === 'this_week') {
+              dateMatch = saleDate >= startOfWeek;
+              isBeforePeriod = saleDate < startOfWeek;
+          } else if (period === 'this_month') {
+              dateMatch = saleDate >= startOfMonth;
+              isBeforePeriod = saleDate < startOfMonth;
+          } else if (period === 'last_month') {
+              dateMatch = saleDate >= startOfLastMonth && saleDate <= endOfLastMonth;
+              isBeforePeriod = saleDate < startOfLastMonth;
+          } else if (period === 'this_year') {
+              dateMatch = saleDate >= startOfYear;
+              isBeforePeriod = saleDate < startOfYear;
+          } else if (period === 'custom') {
+              const s = new Date(customStart);
+              const e = new Date(customEnd);
+              e.setHours(23, 59, 59, 999);
+              dateMatch = saleDate >= s && saleDate <= e;
+              isBeforePeriod = saleDate < s;
+          }
+
+          // Department & Staff filtering
+          const matchesDept = !(dept && dept !== 'Shop' && dept !== '');
+          const matchesStaff = !(staff && staff !== '' && sale.staffId !== staff);
+
+          // Add past transactions to the opening balance
+          if (isBeforePeriod && matchesDept && matchesStaff) {
+             posOpeningBalanceOffset += (sale.totalAmount || 0);
+          }
+
+          return dateMatch && matchesDept && matchesStaff;
+        }).map((sale: any): Transaction => {
+          // Normalize payment method to unify POS records and Ledger records
+          let source = 'Cash';
+          const method = (sale.paymentMethod || '').toUpperCase();
+          if (['MOBILE', 'TIGO', 'MOBILE_MONEY', 'MPESA', 'AIRTEL'].includes(method)) source = 'Mpesa';
+          else if (['CARD', 'BANK', 'BANK_TRANSFER'].includes(method)) source = 'Bank';
+          
+          return {
+              id: sale.id,
+              date: sale.createdAt,
+              type: 'Income',
+              revenue_point: 'Shop',
+              payment_source: source,
+              category: 'POS Sale',
+              description: `POS Sale - Receipt ${sale.receiptNumber}`,
+              amount: sale.totalAmount,
+              reference: sale.receiptNumber,
+              staff_name: sale.staff?.staff?.firstName 
+                 ? `${sale.staff.staff.firstName} ${sale.staff.staff.lastName}` 
+                 : (sale.staff?.firstName || 'System'),
+              created_by: sale.staffId
+          };
+        });
+      }
+
+      // Combine Manual and POS transactions, then sort descending
+      const allTransactions = [...manualTransactions, ...posTransactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+      setTransactions(allTransactions);
+      setOpeningBalance((ledgerRes.data.opening_balance || 0) + posOpeningBalanceOffset);
       setStaffList(ledgerRes.data.staff_list || []);
       setAccountsList(accountsRes.data.accounts || []);
 
@@ -122,7 +208,7 @@ export default function LedgerDashboardPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [period, dept, staff, customStart, customEnd, API_URL, axiosConfig]);
+  }, [period, dept, staff, customStart, customEnd, API_URL, axiosConfig, user?.branchId]);
 
   useEffect(() => {
     fetchLedgerData();
@@ -131,13 +217,15 @@ export default function LedgerDashboardPage() {
   // --- CALCULATION ENGINE ---
   const liquidity = transactions.reduce((acc, curr) => {
     const amt = curr.type === 'Income' ? curr.amount : -curr.amount;
-    acc[curr.payment_source] = (acc[curr.payment_source] || 0) + amt;
+    // Map uppercase source strings to safely bucket varying string values across POS/Ledger
+    const source = (curr.payment_source || '').toUpperCase();
+    acc[source] = (acc[source] || 0) + amt;
     return acc;
   }, {} as Record<string, number>);
 
-  const cashInVault = (liquidity['Cash'] || 0);
-  const mobileMoney = (liquidity['Mpesa'] || 0) + (liquidity['Tigo'] || 0) + (liquidity['Airtel'] || 0);
-  const bankCard = (liquidity['Bank'] || 0) + (liquidity['Card'] || 0);
+  const cashInVault = (liquidity['CASH'] || 0);
+  const mobileMoney = (liquidity['MPESA'] || 0) + (liquidity['TIGO'] || 0) + (liquidity['AIRTEL'] || 0) + (liquidity['MOBILE'] || 0) + (liquidity['MOBILE_MONEY'] || 0);
+  const bankCard = (liquidity['BANK'] || 0) + (liquidity['CARD'] || 0) + (liquidity['BANK_TRANSFER'] || 0);
 
   const deptStats: DeptStat[] = transactions.reduce((acc, curr) => {
     const existing = acc.find(d => d.revenue_point === curr.revenue_point);
@@ -159,7 +247,6 @@ export default function LedgerDashboardPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate it's an image
     if (!file.type.startsWith('image/')) {
       alert("Please upload an image file (JPG, PNG, etc).");
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -176,17 +263,14 @@ export default function LedgerDashboardPage() {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-    formData.append('folder', 'erp_receipts'); // Optional folder organization
+    formData.append('folder', 'erp_receipts'); 
 
     try {
       const response = await axios.post(
         `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
         formData
       );
-
-      // Store the returned secure URL
       setUploadedImageUrl(response.data.secure_url);
-
     } catch (error) {
       console.error("Error uploading to Cloudinary", error);
       alert("Failed to upload image to Cloudinary. Please try again.");
@@ -207,9 +291,7 @@ export default function LedgerDashboardPage() {
     setIsSubmitting(true);
 
     try {
-      // Include the Cloudinary URL in the payload as receipt_path
       const finalReceiptPath = uploadedImageUrl || formData.existing_receipt;
-
       const payload = {
         ...formData,
         amount: parseFloat(formData.amount),
@@ -512,12 +594,17 @@ export default function LedgerDashboardPage() {
                             <Paperclip className="w-4 h-4" />
                           </a>
                         )}
-                        <button onClick={() => openEditModal(t)} className="p-1.5 text-zinc-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors mr-1">
-                          <Pencil className="w-4 h-4" />
-                        </button>
-                        <button onClick={() => handleDelete(t.id)} className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {/* Lock System POS Transactions to restrict edit/delete */}
+                        {t.category !== 'POS Sale' && (
+                          <>
+                            <button onClick={() => openEditModal(t)} className="p-1.5 text-zinc-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors mr-1">
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                            <button onClick={() => handleDelete(t.id)} className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
                       </td>
                     </tr>
                   );
@@ -570,9 +657,9 @@ export default function LedgerDashboardPage() {
                     <label className="text-xs font-bold text-zinc-700">Department</label>
                     <select required value={formData.revenue_point} onChange={e => setFormData({ ...formData, revenue_point: e.target.value })} className="w-full px-3 py-2.5 bg-white border border-zinc-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500">
                       <option value="" disabled>Select...</option>
-                      <option value="Productions">Operations</option>
+                      <option value="Productions">Production</option>
                       <option value="Shop">Shop</option>
-                      <option value="Hotel">Hostel</option>
+                      <option value="Hotel">Hotel</option>
                       <option value="General">General Operations</option>
                     </select>
                   </div>
