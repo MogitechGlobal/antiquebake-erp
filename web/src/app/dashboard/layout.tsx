@@ -85,6 +85,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       allowedRoles: MANAGERS,
       subItems: [
         { name: "General Ledger (GL)", href: "/dashboard/accounting/ledger", allowedRoles: ADMINS },
+        { name: "Chart of Accounts", href: "/dashboard/accounting/chart", allowedRoles: ADMINS },
         { name: "Revenue Analytics", href: "/dashboard/accounting/reports", allowedRoles: MANAGERS },
         { name: "Cash Flow", href: "/dashboard/accounting/cashflow", allowedRoles: MANAGERS },
         { name: "Tax Report", href: "/dashboard/accounting/tax", allowedRoles: MANAGERS },

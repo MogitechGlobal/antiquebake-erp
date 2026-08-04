@@ -22,7 +22,8 @@ import {
   CheckCircle2,
   XCircle,
   Download,
-  ShieldAlert
+  ShieldAlert,
+  User // Added User icon for the staff filter
 } from "lucide-react";
 
 interface SalesItem {
@@ -72,6 +73,7 @@ export default function OrdersDashboardPage() {
   const [dateFilter, setDateFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [paymentFilter, setPaymentFilter] = useState("ALL");
+  const [staffFilter, setStaffFilter] = useState("ALL"); // Added staff filter state
 
   const axiosConfig = { headers: { Authorization: `Bearer ${token}` } };
   
@@ -151,14 +153,26 @@ export default function OrdersDashboardPage() {
     return true;
   };
 
+  // Extract unique staff members from the transactions array
+  const uniqueStaff = Array.from(
+    new Set(
+      transactions.map(
+        (t) => `${t.staff?.staff?.firstName || ""} ${t.staff?.staff?.lastName || ""}`.trim()
+      )
+    )
+  ).filter((name) => name !== "");
+
   const filteredTransactions = transactions.filter(t => {
+    const staffFullName = `${t.staff?.staff?.firstName || ""} ${t.staff?.staff?.lastName || ""}`.trim();
+    
     const matchesSearch = t.receiptNumber.toLowerCase().includes(searchQuery.toLowerCase()) || 
                           (t.staff?.staff?.firstName || "").toLowerCase().includes(searchQuery.toLowerCase());
     const matchesDate = filterByDate(t.createdAt, dateFilter);
     const matchesStatus = statusFilter === "ALL" || t.status === statusFilter;
     const matchesPayment = paymentFilter === "ALL" || t.paymentMethod === paymentFilter;
+    const matchesStaff = staffFilter === "ALL" || staffFullName === staffFilter; // Added staff check
 
-    return matchesSearch && matchesDate && matchesStatus && matchesPayment;
+    return matchesSearch && matchesDate && matchesStatus && matchesPayment && matchesStaff;
   });
 
   // --- ANALYTICS CALCULATIONS ---
@@ -281,6 +295,17 @@ export default function OrdersDashboardPage() {
                 <option value="CASH">Cash</option>
                 <option value="CARD">Card</option>
                 <option value="MOBILE">Mobile Money</option>
+              </select>
+            </div>
+
+            {/* Added Staff Filter */}
+            <div className="relative">
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+              <select value={staffFilter} onChange={(e) => setStaffFilter(e.target.value)} className="pl-9 pr-8 py-2 bg-zinc-50 border border-zinc-200 rounded-xl text-sm font-medium text-zinc-700 outline-none focus:ring-2 focus:ring-bakery-gold appearance-none">
+                <option value="ALL">All Staff</option>
+                {uniqueStaff.map((staffName, idx) => (
+                  <option key={idx} value={staffName}>{staffName}</option>
+                ))}
               </select>
             </div>
           </div>

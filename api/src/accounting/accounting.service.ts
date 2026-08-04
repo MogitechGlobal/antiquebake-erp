@@ -168,4 +168,95 @@ export class AccountingService {
     // Placeholder for future POS sync logic
     return { message: "System synced successfully" };
   }
+
+  // --- CHART OF ACCOUNTS METHODS ---
+
+  async getAccounts(reqUser: any) {
+    const user = await this.getFullUser(reqUser);
+    const organizationId = user.staff?.organizationId;
+
+    if (!organizationId) {
+      throw new UnauthorizedException('User is not associated with an organization.');
+    }
+
+    const accounts = await this.prisma.account.findMany({
+      where: { organizationId },
+      orderBy: { code: 'asc' }
+    });
+
+    return { accounts };
+  }
+
+  async createAccount(data: any, reqUser: any) {
+    const user = await this.getFullUser(reqUser);
+    const organizationId = user.staff?.organizationId;
+
+    if (!organizationId) {
+      throw new UnauthorizedException('User is not associated with an organization.');
+    }
+
+    // Check if account code already exists for this organization
+    const existingAccount = await this.prisma.account.findUnique({
+      where: {
+        code_organizationId: {
+          code: data.code,
+          organizationId: organizationId,
+        }
+      }
+    });
+
+    if (existingAccount) {
+      throw new Error(`Account with code ${data.code} already exists.`);
+    }
+
+    return this.prisma.account.create({
+      data: {
+        code: data.code,
+        name: data.name,
+        type: data.type,
+        organizationId: organizationId,
+      }
+    });
+  }
+
+  async updateAccount(id: string, data: any, reqUser: any) {
+    const user = await this.getFullUser(reqUser);
+    const organizationId = user.staff?.organizationId;
+
+    // Verify ownership before updating
+    const account = await this.prisma.account.findFirst({
+      where: { id, organizationId }
+    });
+
+    if (!account) {
+      throw new UnauthorizedException('Account not found or access denied.');
+    }
+
+    return this.prisma.account.update({
+      where: { id },
+      data: {
+        code: data.code,
+        name: data.name,
+        type: data.type,
+      }
+    });
+  }
+
+  async deleteAccount(id: string, reqUser: any) {
+    const user = await this.getFullUser(reqUser);
+    const organizationId = user.staff?.organizationId;
+
+    // Verify ownership before deleting
+    const account = await this.prisma.account.findFirst({
+      where: { id, organizationId }
+    });
+
+    if (!account) {
+      throw new UnauthorizedException('Account not found or access denied.');
+    }
+
+    return this.prisma.account.delete({ 
+      where: { id } 
+    });
+  }
 }

@@ -3,10 +3,10 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import axios from "axios";
 import { useAuthStore } from "@/lib/store/authStore";
-import { 
-  BookOpen, 
-  PlusCircle, 
-  Filter, 
+import {
+  BookOpen,
+  PlusCircle,
+  Filter,
   Printer,
   FileSpreadsheet,
   Paperclip,
@@ -44,17 +44,18 @@ interface DeptStat {
 export default function LedgerDashboardPage() {
   const { user, token } = useAuthStore();
   const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-  
+
   // Cloudinary Configuration from .env
   const CLOUDINARY_CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
   const CLOUDINARY_UPLOAD_PRESET = "erp_receipts"; // You MUST create this "Unsigned" preset in Cloudinary settings
 
   // Data State
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [staffList, setStaffList] = useState<{id: string, username: string}[]>([]);
+  const [staffList, setStaffList] = useState<{ id: string, username: string }[]>([]);
   const [expenseAccounts, setExpenseAccounts] = useState<string[]>([]);
   const [openingBalance, setOpeningBalance] = useState<number>(0);
-  
+  const [accountsList, setAccountsList] = useState<{ id: string, code: string, name: string, type: string }[]>([]);
+
   // UI & Filter State
   const [isLoading, setIsLoading] = useState(false);
   const [period, setPeriod] = useState<string>("this_month");
@@ -62,12 +63,12 @@ export default function LedgerDashboardPage() {
   const [staff, setStaff] = useState<string>("");
   const [customStart, setCustomStart] = useState<string>(new Date().toISOString().split('T')[0]);
   const [customEnd, setCustomEnd] = useState<string>(new Date().toISOString().split('T')[0]);
-  
+
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   // Image Upload State
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
@@ -85,7 +86,7 @@ export default function LedgerDashboardPage() {
     description: "",
     existing_receipt: ""
   };
-  
+
   const [formData, setFormData] = useState(initialFormState);
 
   const axiosConfig = useMemo(() => ({ headers: { Authorization: `Bearer ${token}` } }), [token]);
@@ -94,25 +95,30 @@ export default function LedgerDashboardPage() {
   const fetchLedgerData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await axios.get(`${API_URL}/api/v1/accounting/ledger/legacy-format`, {
-        ...axiosConfig,
-        params: { period, dept, staff, start: customStart, end: customEnd }
-      }).catch(() => ({ 
-        data: { 
-          transactions: [], 
-          opening_balance: 0, 
-          staff_list: [], 
-          expense_accounts: ["Utilities", "Supplies", "Maintenance", "Salaries"] 
-        } 
-      }));
+      // Fetch ledger data and accounts concurrently
+      const [ledgerRes, accountsRes] = await Promise.all([
+        axios.get(`${API_URL}/api/v1/accounting/ledger/legacy-format`, {
+          ...axiosConfig,
+          params: { period, dept, staff, start: customStart, end: customEnd }
+        }).catch(() => ({
+          data: {
+            transactions: [],
+            opening_balance: 0,
+            staff_list: [],
+          }
+        })),
+        axios.get(`${API_URL}/api/v1/accounting/accounts`, axiosConfig).catch(() => ({
+          data: { accounts: [] }
+        }))
+      ]);
 
-      setTransactions(res.data.transactions || []);
-      setOpeningBalance(res.data.opening_balance || 0);
-      setStaffList(res.data.staff_list || []);
-      setExpenseAccounts(res.data.expense_accounts || ["Utilities", "Supplies", "Maintenance", "Salaries"]);
-      
+      setTransactions(ledgerRes.data.transactions || []);
+      setOpeningBalance(ledgerRes.data.opening_balance || 0);
+      setStaffList(ledgerRes.data.staff_list || []);
+      setAccountsList(accountsRes.data.accounts || []);
+
     } catch (err) {
-      console.error("Failed to fetch ledger", err);
+      console.error("Failed to fetch ledger or accounts", err);
     } finally {
       setIsLoading(false);
     }
@@ -177,10 +183,10 @@ export default function LedgerDashboardPage() {
         `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
         formData
       );
-      
+
       // Store the returned secure URL
       setUploadedImageUrl(response.data.secure_url);
-      
+
     } catch (error) {
       console.error("Error uploading to Cloudinary", error);
       alert("Failed to upload image to Cloudinary. Please try again.");
@@ -199,23 +205,23 @@ export default function LedgerDashboardPage() {
   const handleSaveTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    
+
     try {
       // Include the Cloudinary URL in the payload as receipt_path
       const finalReceiptPath = uploadedImageUrl || formData.existing_receipt;
-      
-      const payload = { 
-        ...formData, 
+
+      const payload = {
+        ...formData,
         amount: parseFloat(formData.amount),
         receipt_path: finalReceiptPath
       };
-      
+
       if (isEditMode) {
         await axios.patch(`${API_URL}/api/v1/accounting/ledger/legacy-format/${formData.id}`, payload, axiosConfig);
       } else {
         await axios.post(`${API_URL}/api/v1/accounting/ledger/legacy-format`, payload, axiosConfig);
       }
-      
+
       fetchLedgerData();
       closeModal();
     } catch (err: any) {
@@ -280,15 +286,15 @@ export default function LedgerDashboardPage() {
   const handleExportExcel = () => {
     let csvContent = "data:text/csv;charset=utf-8,";
     csvContent += "Date,Dept,Ref #,Category,Description,Source,Income,Expense,Balance\n";
-    
+
     let currentBal = openingBalance;
     csvContent += `,,,OPENING BALANCE,,,,${openingBalance}\n`;
-    
+
     transactions.forEach(t => {
       const inc = t.type === 'Income' ? t.amount : 0;
       const exp = t.type === 'Expense' ? t.amount : 0;
       currentBal = currentBal + inc - exp;
-      
+
       const row = [
         t.date.split('T')[0],
         t.revenue_point,
@@ -314,11 +320,11 @@ export default function LedgerDashboardPage() {
 
   // --- RENDER HELPERS ---
   const getSourceBadge = (source: string) => {
-    switch(source) {
+    switch (source) {
       case 'Cash': return 'bg-zinc-500 text-white';
-      case 'Bank': 
+      case 'Bank':
       case 'Card': return 'bg-zinc-900 text-white';
-      default: return 'bg-emerald-500 text-white'; 
+      default: return 'bg-emerald-500 text-white';
     }
   };
 
@@ -326,7 +332,7 @@ export default function LedgerDashboardPage() {
 
   return (
     <div className="max-w-[90rem] mx-auto space-y-6 relative pb-12 print:m-0 print:p-0 print:max-w-full">
-      
+
       {/* PRINT HEADER */}
       <div className="hidden print:block text-center mb-6">
         <h3 className="text-2xl font-bold text-black">WinNet ERP</h3>
@@ -362,7 +368,7 @@ export default function LedgerDashboardPage() {
           <p className="text-zinc-400 text-xs font-bold uppercase tracking-wider">BANK / CARD</p>
           <h3 className="text-2xl font-bold mt-2">{bankCard.toLocaleString()} <span className="text-sm font-medium">TZS</span></h3>
         </div>
-        <div 
+        <div
           onClick={openAddModal}
           className="bg-zinc-50 border-2 border-blue-600 border-dashed rounded-xl shadow-sm cursor-pointer hover:bg-blue-50 transition-colors flex flex-col items-center justify-center p-5 group"
         >
@@ -424,7 +430,7 @@ export default function LedgerDashboardPage() {
           {deptStats.map((row) => {
             const net = row.income - row.expense;
             const badgeColor = row.revenue_point === 'Productions' ? 'bg-cyan-100 text-cyan-800' : 'bg-zinc-200 text-zinc-800';
-            
+
             return (
               <div key={row.revenue_point} className="bg-white rounded-xl shadow-sm border border-zinc-200 p-3">
                 <div className="mb-2">
@@ -484,7 +490,7 @@ export default function LedgerDashboardPage() {
                       </td>
                       <td className="px-4 py-3 min-w-[250px]">
                         <div className="font-bold text-zinc-900">
-                          {t.category} 
+                          {t.category}
                           <span className="text-[10px] bg-zinc-100 text-zinc-600 border border-zinc-200 px-1.5 py-0.5 rounded ml-2 font-semibold">
                             {t.revenue_point}
                           </span>
@@ -517,7 +523,7 @@ export default function LedgerDashboardPage() {
                   );
                 })
               )}
-              
+
               <tr className="bg-zinc-100 font-extrabold print:bg-white print:border-t-2 print:border-black">
                 <td colSpan={5} className="px-4 py-4 text-right text-zinc-700">CLOSING BALANCE</td>
                 <td className="px-4 py-4 text-right text-blue-700 border-t-2 border-zinc-300 text-base">{runningBalance.toLocaleString()}</td>
@@ -547,22 +553,22 @@ export default function LedgerDashboardPage() {
               </div>
               <button onClick={closeModal} className="p-1.5 hover:bg-white/20 rounded-full transition-colors"><X className="w-5 h-5" /></button>
             </div>
-            
+
             <div className="flex-1 overflow-y-auto p-6 bg-zinc-50">
               <form id="ledger-form" onSubmit={handleSaveTransaction} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  
+
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-zinc-700">Type</label>
-                    <select required value={formData.type} onChange={e => setFormData({...formData, type: e.target.value as any})} className="w-full px-3 py-2.5 bg-white border border-zinc-300 rounded-lg text-sm font-bold focus:ring-2 focus:ring-blue-500">
+                    <select required value={formData.type} onChange={e => setFormData({ ...formData, type: e.target.value as any })} className="w-full px-3 py-2.5 bg-white border border-zinc-300 rounded-lg text-sm font-bold focus:ring-2 focus:ring-blue-500">
                       <option value="Expense">▼ Expense</option>
                       <option value="Income">▲ Income</option>
                     </select>
                   </div>
-                  
+
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-zinc-700">Department</label>
-                    <select required value={formData.revenue_point} onChange={e => setFormData({...formData, revenue_point: e.target.value})} className="w-full px-3 py-2.5 bg-white border border-zinc-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500">
+                    <select required value={formData.revenue_point} onChange={e => setFormData({ ...formData, revenue_point: e.target.value })} className="w-full px-3 py-2.5 bg-white border border-zinc-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500">
                       <option value="" disabled>Select...</option>
                       <option value="Productions">Operations</option>
                       <option value="Shop">Shop</option>
@@ -573,7 +579,7 @@ export default function LedgerDashboardPage() {
 
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-zinc-700">Source</label>
-                    <select required value={formData.payment_source} onChange={e => setFormData({...formData, payment_source: e.target.value})} className="w-full px-3 py-2.5 bg-white border border-zinc-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500">
+                    <select required value={formData.payment_source} onChange={e => setFormData({ ...formData, payment_source: e.target.value })} className="w-full px-3 py-2.5 bg-white border border-zinc-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500">
                       <option value="Cash">Cash</option>
                       <option value="Mpesa">M-Pesa</option>
                       <option value="Tigo">Tigo</option>
@@ -585,59 +591,68 @@ export default function LedgerDashboardPage() {
 
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-zinc-700">Date</label>
-                    <input type="date" required value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full px-3 py-2.5 bg-white border border-zinc-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
+                    <input type="date" required value={formData.date} onChange={e => setFormData({ ...formData, date: e.target.value })} className="w-full px-3 py-2.5 bg-white border border-zinc-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
                   </div>
 
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-zinc-700">Amount</label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 text-sm font-bold">TZS</span>
-                      <input type="number" step="0.01" required value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} className="w-full pl-12 pr-3 py-2.5 bg-white border border-zinc-300 rounded-lg text-sm font-bold focus:ring-2 focus:ring-blue-500" />
+                      <input type="number" step="0.01" required value={formData.amount} onChange={e => setFormData({ ...formData, amount: e.target.value })} className="w-full pl-12 pr-3 py-2.5 bg-white border border-zinc-300 rounded-lg text-sm font-bold focus:ring-2 focus:ring-blue-500" />
                     </div>
                   </div>
 
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-zinc-700">Account / Category</label>
-                    <select required value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} className="w-full px-3 py-2.5 bg-white border border-zinc-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500">
-                      <option value="" disabled>Select...</option>
-                      {expenseAccounts.map(acc => <option key={acc} value={acc}>{acc}</option>)}
+                    <select
+                      required
+                      value={formData.category}
+                      onChange={e => setFormData({ ...formData, category: e.target.value })}
+                      className="w-full px-3 py-2.5 bg-white border border-zinc-300 rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="" disabled>Select Account...</option>
+                      {accountsList.map(acc => (
+                        <option key={acc.id} value={acc.name}>
+                          {acc.code} - {acc.name} ({acc.type})
+                        </option>
+                      ))}
                       <option value="POS Sale">POS Sale (System)</option>
                     </select>
                   </div>
 
                   <div className="space-y-1.5 md:col-span-2">
                     <label className="text-xs font-bold text-zinc-700">Reference (e.g., Receipt #)</label>
-                    <input type="text" value={formData.reference} onChange={e => setFormData({...formData, reference: e.target.value})} className="w-full px-3 py-2.5 bg-white border border-zinc-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
+                    <input type="text" value={formData.reference} onChange={e => setFormData({ ...formData, reference: e.target.value })} className="w-full px-3 py-2.5 bg-white border border-zinc-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
                   </div>
 
                   <div className="space-y-1.5 md:col-span-2">
                     <label className="text-xs font-bold text-zinc-700">Description</label>
-                    <textarea required rows={2} value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full px-3 py-2.5 bg-white border border-zinc-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
+                    <textarea required rows={2} value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} className="w-full px-3 py-2.5 bg-white border border-zinc-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
                   </div>
 
                   {/* Cloudinary Image Upload Section */}
                   <div className="space-y-1.5 md:col-span-2">
                     <label className="text-xs font-bold text-zinc-700">{isEditMode && uploadedImageUrl ? 'Current Receipt' : 'Attach File (Images Only)'}</label>
-                    
+
                     {uploadedImageUrl ? (
                       <div className="flex items-center justify-between p-3 bg-white border border-zinc-200 rounded-lg">
                         <div className="flex items-center text-sm font-medium text-emerald-600">
                           <CheckCircle2 className="w-4 h-4 mr-2" /> Receipt Uploaded
                         </div>
                         <div className="flex gap-2">
-                           <a href={uploadedImageUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-blue-600 hover:underline">View</a>
-                           <button type="button" onClick={removeUploadedImage} className="text-xs font-bold text-red-600 hover:underline">Remove</button>
+                          <a href={uploadedImageUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-blue-600 hover:underline">View</a>
+                          <button type="button" onClick={removeUploadedImage} className="text-xs font-bold text-red-600 hover:underline">Remove</button>
                         </div>
                       </div>
                     ) : (
                       <div className="relative">
-                        <input 
-                          type="file" 
-                          accept="image/*" 
+                        <input
+                          type="file"
+                          accept="image/*"
                           ref={fileInputRef}
                           onChange={handleImageUpload}
                           disabled={isUploadingImage}
-                          className="w-full px-3 py-2 bg-white border border-zinc-300 rounded-lg text-sm file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-zinc-100 file:text-zinc-700 hover:file:bg-zinc-200 cursor-pointer disabled:opacity-50" 
+                          className="w-full px-3 py-2 bg-white border border-zinc-300 rounded-lg text-sm file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-zinc-100 file:text-zinc-700 hover:file:bg-zinc-200 cursor-pointer disabled:opacity-50"
                         />
                         {isUploadingImage && (
                           <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center text-xs font-bold text-blue-600">

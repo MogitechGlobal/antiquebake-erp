@@ -31,4 +31,26 @@ export class AccountingController {
   syncSystem() {
     return this.accountingService.syncSystem();
   }
+
+  // --- CHART OF ACCOUNTS ENDPOINTS ---
+
+  @Get('accounts')
+  getAccounts(@Request() req: any) {
+    return this.accountingService.getAccounts(req.user);
+  }
+
+  @Post('accounts')
+  createAccount(@Body() data: any, @Request() req: any) {
+    return this.accountingService.createAccount(data, req.user);
+  }
+
+  @Patch('accounts/:id')
+  updateAccount(@Param('id') id: string, @Body() data: any, @Request() req: any) {
+    return this.accountingService.updateAccount(id, data, req.user);
+  }
+
+  @Delete('accounts/:id')
+  deleteAccount(@Param('id') id: string, @Request() req: any) {
+    return this.accountingService.deleteAccount(id, req.user);
+  }
 }
