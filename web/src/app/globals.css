@@ -22,3 +22,25 @@
     font-family: system-ui, -apple-system, sans-serif;
   }
 }
+
+@media print {
+  /* Hide application navigation bars/headers */
+  header,
+  nav {
+    display: none !important;
+  }
+
+  /* Reset fixed positioning so the print layout renders naturally */
+  div.fixed {
+    position: static !important;
+    display: block !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+  }
+
+  body {
+    background: white !important;
+    color: black !important;
+  }
+}

@@ -53,7 +53,8 @@ interface POItem {
 interface PurchaseOrder {
   id: string;
   poNumber: string;
-  status: 'DRAFT' | 'APPROVED' | 'RECEIVED' | 'CANCELLED'; 
+  // Added PENDING to handle default backend creation state
+  status: 'DRAFT' | 'PENDING' | 'APPROVED' | 'RECEIVED' | 'CANCELLED'; 
   totalAmount: number;
   createdAt: string;
   supplier: Supplier;
@@ -92,8 +93,15 @@ export default function ProcurementDashboardPage() {
 
   const axiosConfig = useMemo(() => ({ headers: { Authorization: `Bearer ${token}` } }), [token]);
 
-  // Role-Based Control Check
-  const isManager = user?.role === 'Admin' || user?.role === 'Super Admin' || user?.role === 'StoreManager';
+  // --- ROLE-BASED ACCESS CONTROL (RBAC) ---
+  const receivingRoles = ['Admin', 'Super Admin', 'Inventory Manager', 'Branch Manager'];
+  const canReceiveLpo = user?.role ? receivingRoles.includes(user.role) : false;
+  
+  // Managers who can receive can also approve or cancel LPOs
+  const canManageLpo = canReceiveLpo; 
+  
+  const generatingRoles = ['Admin', 'Super Admin', 'Inventory Manager', 'Branch Manager', 'Inventory Clerk'];
+  const canGenerateLpo = user?.role ? generatingRoles.includes(user.role) : false;
 
   const fetchProcurementData = useCallback(async () => {
     if (!user?.branchId || !token) return;
@@ -168,8 +176,6 @@ export default function ProcurementDashboardPage() {
       let targetStatus = 'PENDING'; 
       if (isDirectGrn) {
         targetStatus = 'RECEIVED';
-      } else if (isManager) {
-        targetStatus = 'PENDING'; 
       }
 
       if (targetStatus !== 'PENDING') {
@@ -201,8 +207,8 @@ export default function ProcurementDashboardPage() {
   };
 
   const handleOrderStatusUpdate = async (orderId: string, newStatus: string) => {
-    if (!isManager && newStatus !== 'DRAFT') {
-      alert("Access Denied: Only Managers can update LPO status.");
+    if (!canManageLpo && newStatus !== 'DRAFT') {
+      alert("Access Denied: Only management roles can update LPO statuses.");
       return;
     }
     
@@ -232,11 +238,9 @@ export default function ProcurementDashboardPage() {
     setIsSubmitting(true);
     
     try {
-      // Future-proofing for multipart/form-data when backend accepts file uploads[cite: 14]
-      // For now, we update the status via the existing patch route
       await axios.patch(`${API_URL}/api/v1/procurement/order/${selectedOrder.id}/status`, { 
         status: 'RECEIVED',
-        deliveryNote: receiveForm.deliveryNote // Ensure your backend DTO allows this if you want to store it
+        deliveryNote: receiveForm.deliveryNote 
       }, axiosConfig);
       
       fetchProcurementData();
@@ -269,7 +273,7 @@ export default function ProcurementDashboardPage() {
   const currentData = getFilteredData();
 
   const totalSpend = completedGRNs.reduce((sum, o) => sum + o.totalAmount, 0);
-  const pendingLiabilities = activeLPOs.filter(o=>o.status === 'APPROVED' || o.status === 'DRAFT').reduce((sum, o) => sum + o.totalAmount, 0);
+  const pendingLiabilities = activeLPOs.filter(o=> ['APPROVED', 'PENDING', 'DRAFT'].includes(o.status)).reduce((sum, o) => sum + o.totalAmount, 0);
 
   if (isLoading) {
     return (
@@ -290,12 +294,16 @@ export default function ProcurementDashboardPage() {
           <p className="text-zinc-500 mt-1 font-medium">Manage vendors, purchase orders, and goods receipts.</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <button onClick={() => { setLpoForm({...lpoForm, isDirectGrn: true}); setIsDirectGrnModalOpen(true); }} className="bg-white hover:bg-zinc-50 text-zinc-700 border border-zinc-200 px-4 py-2.5 rounded-xl font-bold shadow-sm transition-all flex items-center">
-            <Box className="w-4 h-4 mr-2 text-emerald-600" /> Direct Stock In
-          </button>
-          <button onClick={() => { setLpoForm({...lpoForm, isDirectGrn: false}); setIsLpoModalOpen(true); }} className="bg-zinc-900 hover:bg-black text-white px-5 py-2.5 rounded-xl font-bold shadow-lg transition-all flex items-center">
-            <FileText className="w-5 h-5 mr-2" /> Generate LPO
-          </button>
+          {canReceiveLpo && (
+            <button onClick={() => { setLpoForm({...lpoForm, isDirectGrn: true}); setIsDirectGrnModalOpen(true); }} className="bg-white hover:bg-zinc-50 text-zinc-700 border border-zinc-200 px-4 py-2.5 rounded-xl font-bold shadow-sm transition-all flex items-center">
+              <Box className="w-4 h-4 mr-2 text-emerald-600" /> Direct Stock In
+            </button>
+          )}
+          {canGenerateLpo && (
+            <button onClick={() => { setLpoForm({...lpoForm, isDirectGrn: false}); setIsLpoModalOpen(true); }} className="bg-zinc-900 hover:bg-black text-white px-5 py-2.5 rounded-xl font-bold shadow-lg transition-all flex items-center">
+              <FileText className="w-5 h-5 mr-2" /> Generate LPO
+            </button>
+          )}
         </div>
       </div>
 
@@ -417,7 +425,8 @@ export default function ProcurementDashboardPage() {
                       </td>
                       <td className="px-6 py-4">
                         {order.status === 'DRAFT' && <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-zinc-100 text-zinc-700 border border-zinc-200"><AlertCircle className="w-3 h-3 mr-1.5" /> Draft</span>}
-                        {order.status === 'APPROVED' && <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200"><Clock className="w-3 h-3 mr-1.5" /> Approved</span>}
+                        {order.status === 'PENDING' && <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200"><Clock className="w-3 h-3 mr-1.5" /> Pending</span>}
+                        {order.status === 'APPROVED' && <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200"><CheckCircle2 className="w-3 h-3 mr-1.5" /> Approved</span>}
                         {order.status === 'RECEIVED' && <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200"><CheckCircle2 className="w-3 h-3 mr-1.5" /> Received</span>}
                         {order.status === 'CANCELLED' && <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-red-50 text-red-700 border border-red-200"><X className="w-3 h-3 mr-1.5" /> Cancelled</span>}
                       </td>
@@ -532,26 +541,29 @@ export default function ProcurementDashboardPage() {
 
             </div>
 
-            {/* Workflow Footer (Hidden on Print)[cite: 14] */}
+            {/* Workflow Footer */}
             <div className="p-4 border-t border-zinc-200 bg-white flex justify-between items-center print:hidden">
               <div className="flex gap-2">
-                 {/* Workflow logic mapped from legacy lpo.php[cite: 14] */}
-                 {isManager && selectedOrder.status === 'APPROVED' && (
+                 {/* Receive Stock - Now explicitly allows receiving PENDING or APPROVED orders */}
+                 {canReceiveLpo && ['APPROVED', 'PENDING'].includes(selectedOrder.status) && (
                     <button onClick={() => setIsReceiveModalOpen(true)} disabled={isSubmitting} className="px-4 py-2 text-sm font-bold text-white bg-[#198754] hover:bg-[#157347] rounded shadow-sm transition-colors flex items-center">
                        <Box className="w-4 h-4 mr-2" /> Receive Stock
                     </button>
                  )}
-                 {isManager && selectedOrder.status === 'DRAFT' && (
+                 {/* Approve Order */}
+                 {canManageLpo && ['DRAFT', 'PENDING'].includes(selectedOrder.status) && (
                     <button onClick={() => handleOrderStatusUpdate(selectedOrder.id, 'APPROVED')} disabled={isSubmitting} className="px-4 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded shadow-sm transition-colors flex items-center">
                        <CheckCircle2 className="w-4 h-4 mr-2" /> Approve
                     </button>
                  )}
-                 {isManager && (selectedOrder.status === 'DRAFT' || selectedOrder.status === 'APPROVED') && (
+                 {/* Cancel Order */}
+                 {canManageLpo && ['DRAFT', 'PENDING', 'APPROVED'].includes(selectedOrder.status) && (
                     <button onClick={() => handleOrderStatusUpdate(selectedOrder.id, 'CANCELLED')} disabled={isSubmitting} className="px-4 py-2 text-sm font-bold text-white bg-[#dc3545] hover:bg-[#bb2d3b] rounded shadow-sm transition-colors flex items-center">
                        <X className="w-4 h-4 mr-2" /> Cancel Order
                     </button>
                  )}
-                 {isManager && selectedOrder.status === 'CANCELLED' && (
+                 {/* Reset to Draft */}
+                 {canManageLpo && selectedOrder.status === 'CANCELLED' && (
                     <button onClick={() => handleOrderStatusUpdate(selectedOrder.id, 'DRAFT')} disabled={isSubmitting} className="px-4 py-2 text-sm font-bold text-white bg-zinc-500 hover:bg-zinc-600 rounded shadow-sm transition-colors flex items-center">
                        <RotateCcw className="w-4 h-4 mr-2" /> Reset to Draft
                     </button>
@@ -561,16 +573,18 @@ export default function ProcurementDashboardPage() {
                 <button onClick={() => setSelectedOrder(null)} className="px-5 py-2 text-sm font-bold text-white bg-[#6c757d] hover:bg-[#5c636a] rounded shadow-sm transition-colors">
                   Close
                 </button>
-                <button onClick={() => window.print()} className="px-5 py-2 text-sm font-bold text-white bg-[#212529] hover:bg-[#1c1f23] rounded shadow-sm transition-colors flex items-center">
-                  <Printer className="w-4 h-4 mr-2" /> Print PO
-                </button>
+                {canGenerateLpo && (
+                  <button onClick={() => window.print()} className="px-5 py-2 text-sm font-bold text-white bg-[#212529] hover:bg-[#1c1f23] rounded shadow-sm transition-colors flex items-center">
+                    <Printer className="w-4 h-4 mr-2" /> Print PO
+                  </button>
+                )}
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* --- RECEIVE STOCK MODAL[cite: 14] --- */}
+      {/* --- RECEIVE STOCK MODAL --- */}
       {isReceiveModalOpen && selectedOrder && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm print:hidden">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95">
