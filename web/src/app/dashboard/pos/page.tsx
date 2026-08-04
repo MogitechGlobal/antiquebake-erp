@@ -77,7 +77,7 @@ export default function POSDashboardPage() {
   
   // Modals
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<"CASH" | "CARD" | "MOBILE">("CASH");
+  const [paymentMethod, setPaymentMethod] = useState<"CASH" | "CARD" | "MOBILE" | "BANK" | "TIGO">("CASH");
   
   // Transaction State
   const [isProcessing, setIsProcessing] = useState(false);
@@ -503,6 +503,14 @@ export default function POSDashboardPage() {
                 <button onClick={() => setPaymentMethod("MOBILE")} className={`py-4 flex flex-col items-center justify-center rounded-2xl border-2 transition-all ${paymentMethod === 'MOBILE' ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-sm' : 'border-zinc-200 text-zinc-500 hover:bg-zinc-50'}`}>
                   <Smartphone className="w-6 h-6 mb-2" />
                   <span className="text-sm font-bold">M-Pesa</span>
+                </button>
+                <button onClick={() => setPaymentMethod("TIGO")} className={`py-4 flex flex-col items-center justify-center rounded-2xl border-2 transition-all ${paymentMethod === 'TIGO' ? 'border-green-500 bg-green-50 text-green-700 shadow-sm' : 'border-zinc-200 text-zinc-500 hover:bg-zinc-50'}`}>
+                  <Smartphone className="w-6 h-6 mb-2" />
+                  <span className="text-sm font-bold">Tigo Pesa</span>
+                </button>
+                <button onClick={() => setPaymentMethod("BANK")} className={`py-4 flex flex-col items-center justify-center rounded-2xl border-2 transition-all ${paymentMethod === 'BANK' ? 'border-indigo-500 bg-indigo-50 text-indigo-700 shadow-sm' : 'border-zinc-200 text-zinc-500 hover:bg-zinc-50'}`}>
+                  <Banknote className="w-6 h-6 mb-2" />
+                  <span className="text-sm font-bold">Bank Transfer</span>
                 </button>
                 <button onClick={() => setPaymentMethod("CARD")} className={`col-span-2 py-4 flex flex-col items-center justify-center rounded-2xl border-2 transition-all ${paymentMethod === 'CARD' ? 'border-bakery-gold bg-bakery-gold/10 text-bakery-brown shadow-sm' : 'border-zinc-200 text-zinc-500 hover:bg-zinc-50'}`}>
                   <CreditCard className="w-6 h-6 mb-2" />

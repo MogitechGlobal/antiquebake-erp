@@ -25,7 +25,7 @@ export class CreateTransactionDto {
   @IsNotEmpty()
   staffId!: string;
 
-  @IsEnum(['CASH', 'CARD', 'MOBILE'])
+  @IsEnum(['CASH', 'CARD', 'MOBILE', 'BANK', 'TIGO'])
   paymentMethod!: string;
 
   @IsArray()
