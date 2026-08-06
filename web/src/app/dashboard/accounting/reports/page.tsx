@@ -14,7 +14,8 @@ import {
   FileText,
   AlertCircle,
   Calendar,
-  List,X,
+  List,
+  X,
   Eye,
   Building
 } from "lucide-react";
@@ -66,20 +67,83 @@ export default function FinancialReportsPage() {
 
   const axiosConfig = useMemo(() => ({ headers: { Authorization: `Bearer ${token}` } }), [token]);
 
-  // Fetch data from the legacy endpoint we built previously
+  // Fetch data from legacy ledger, POS, and Procurement endpoints
   const fetchReportData = useCallback(async () => {
     if (!user?.branchId || !token) return;
+    
     try {
       setIsLoading(true);
       setError(null);
-      const res = await axios.get(`${API_URL}/api/v1/accounting/ledger/legacy-format`, {
-        ...axiosConfig,
-        params: { period, dept, start: customStartDate, end: customEndDate }
-      });
-      setTransactions(res.data.transactions || []);
+      
+      const params = { period, dept, start: customStartDate, end: customEndDate };
+
+      // Concurrently fetch Ledger, POS (Sales), and Procurement (Purchases/COGS)
+      const [ledgerRes, posRes, procurementRes] = await Promise.allSettled([
+        axios.get(`${API_URL}/api/v1/accounting/ledger/legacy-format`, { ...axiosConfig, params }),
+        
+        // FIXED: Added /transactions/ and the user's branch ID
+        axios.get(`${API_URL}/api/v1/pos/transactions/${user.branchId}`, { ...axiosConfig, params }),
+        
+        // FIXED: Added /orders/ and the user's branch ID
+        axios.get(`${API_URL}/api/v1/procurement/orders/${user.branchId}`, { ...axiosConfig, params })
+      ]);
+
+      let combinedTransactions: Transaction[] = [];
+
+      // 1. Process Ledger Transactions
+      if (ledgerRes.status === 'fulfilled' && ledgerRes.value.data?.transactions) {
+        combinedTransactions = [...combinedTransactions, ...ledgerRes.value.data.transactions];
+      }
+
+      // 2. Process POS Sales (Map to 'Income')
+      if (posRes.status === 'fulfilled' && posRes.value.data) {
+        // Handle variations in API response wrappers
+        const salesData = Array.isArray(posRes.value.data) ? posRes.value.data : posRes.value.data.data || [];
+        
+        const mappedSales = salesData.map((sale: any) => ({
+          id: `pos-${sale.id || Math.random().toString(36).substr(2, 9)}`,
+          date: sale.createdAt || sale.date || new Date().toISOString(),
+          type: 'Income' as const,
+          revenue_point: sale.department || 'Shop',
+          payment_source: sale.paymentMethod || 'Cash',
+          category: 'Sales',
+          description: `POS Sale - ${sale.customerName || 'Walk-in'}`,
+          amount: Number(sale.totalAmount || sale.amount || 0),
+          reference: sale.receiptNumber || sale.id || 'N/A',
+          staff_name: sale.cashierName || sale.staffName || 'System'
+        }));
+        
+        combinedTransactions = [...combinedTransactions, ...mappedSales];
+      }
+
+      // 3. Process Procurement (Map to 'Expense' -> 'Purchases/COGS')
+      if (procurementRes.status === 'fulfilled' && procurementRes.value.data) {
+        const procurementData = Array.isArray(procurementRes.value.data) ? procurementRes.value.data : procurementRes.value.data.data || [];
+        
+        const mappedPurchases = procurementData.map((purchase: any) => ({
+          id: `proc-${purchase.id || Math.random().toString(36).substr(2, 9)}`,
+          date: purchase.createdAt || purchase.date || new Date().toISOString(),
+          type: 'Expense' as const,
+          revenue_point: purchase.department || 'General',
+          payment_source: purchase.paymentMethod || 'Bank Transfer',
+          category: 'Purchases/COGS', // Categorized explicitly so dynamic directCosts formula picks it up
+          description: `Stock Purchase - ${purchase.supplierName || 'Vendor'}`,
+          amount: Number(purchase.totalCost || purchase.amount || 0),
+          reference: purchase.poNumber || purchase.invoiceNumber || purchase.id || 'N/A',
+          staff_name: purchase.requestedBy || 'System'
+        }));
+
+        combinedTransactions = [...combinedTransactions, ...mappedPurchases];
+      }
+
+      // Sort combined data by date (newest first)
+      combinedTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      
+      setTransactions(combinedTransactions);
+
     } catch (err) {
       console.error("Failed to load reports", err);
-      setError("Failed to fetch financial data. Ensure the server is running.");
+      setError("Failed to fetch financial data. Ensure the server and all sub-modules (POS/Procurement) are running.");
     } finally {
       setIsLoading(false);
     }
@@ -89,7 +153,7 @@ export default function FinancialReportsPage() {
     fetchReportData();
   }, [fetchReportData]);
 
-  // --- DYNAMIC CALCULATIONS (Mirroring reports.php) ---
+  // --- DYNAMIC CALCULATIONS ---
   const { 
     totalIncome, 
     totalExpenses, 
@@ -123,16 +187,17 @@ export default function FinancialReportsPage() {
     };
   }, [transactions]);
 
-  // Legacy PHP logic explicitly calculated COGS / Purchases separately.
-  // For the frontend rewrite, we categorize "Purchases" as a specific expense category if it exists,
-  // or use a calculated estimate if direct DB connection to POS is unavailable.
-  const directCosts = expenseBreakdown.find(e => e.name.toLowerCase().includes('purchases') || e.name.toLowerCase().includes('cogs'))?.value || 0;
+  // Isolate COGS based on category keywords
+  const directCosts = expenseBreakdown
+    .filter(e => e.name.toLowerCase().includes('purchases') || e.name.toLowerCase().includes('cogs'))
+    .reduce((sum, e) => sum + e.value, 0);
+
   const operatingExpenses = totalExpenses - directCosts;
   
   const grossProfit = totalIncome - directCosts;
   const netProfit = grossProfit - operatingExpenses;
 
-  // Placeholder for fetching order details (Requires a POS endpoint)
+  // Placeholder for fetching order details (Requires a POS endpoint for individual receipt lookup)
   const handleViewOrder = (ref: string) => {
     setActiveOrderRef(ref);
     setIsOrderModalOpen(true);
@@ -204,7 +269,6 @@ export default function FinancialReportsPage() {
             <Building className="w-4 h-4 mr-2" /> Dept
           </div>
 
-          {/* EXACT DEPARTMENTS REQUESTED */}
           <select 
             value={dept} 
             onChange={(e) => setDept(e.target.value)} 
@@ -239,7 +303,7 @@ export default function FinancialReportsPage() {
         <p className="text-xs text-black">Branch: {user?.branchName} | Dept: {dept || 'All'}</p>
       </div>
 
-      {/* KPI METRICS (Matching legacy grid) */}
+      {/* KPI METRICS */}
       <div className="grid grid-cols-2 md:grid-cols-6 gap-3 print:grid-cols-6 print:gap-2">
         
         <div className="bg-white border-l-4 border-emerald-500 rounded-lg p-3 shadow-sm print:border-black print:shadow-none">
@@ -332,7 +396,7 @@ export default function FinancialReportsPage() {
                 {expenseBreakdown.length === 0 ? (
                   <tr><td colSpan={2} className="px-6 py-2 text-zinc-400 italic">No expenses recorded.</td></tr>
                 ) : (
-                  expenseBreakdown.filter(e => !e.name.toLowerCase().includes('purchases')).map((exp, idx) => (
+                  expenseBreakdown.filter(e => !e.name.toLowerCase().includes('purchases') && !e.name.toLowerCase().includes('cogs')).map((exp, idx) => (
                     <tr key={idx}>
                       <td className="px-6 py-2 text-red-600">{exp.name}</td>
                       <td className="px-6 py-2 text-right font-bold text-red-600">({exp.value.toLocaleString()})</td>
@@ -391,7 +455,7 @@ export default function FinancialReportsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <span className="text-zinc-700">{t.description}</span>
-                      {t.reference && t.reference.toLowerCase().includes('order') ? (
+                      {t.reference && t.reference.toLowerCase().includes('pos') ? (
                         <div className="mt-1">
                           <button onClick={() => handleViewOrder(t.reference)} className="text-[10px] font-bold text-blue-600 hover:underline flex items-center print:hidden">
                             <Eye className="w-3 h-3 mr-1" /> Ref: {t.reference}

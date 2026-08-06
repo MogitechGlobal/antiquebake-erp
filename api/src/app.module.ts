@@ -1,5 +1,6 @@
 // api/src/app.module.ts
 import { Module } from '@nestjs/common';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { BranchModule } from './branch/branch.module';
@@ -15,6 +16,10 @@ import { ProfileModule } from './profile/profile.module';
 
 @Module({
   imports: [
+    ThrottlerModule.forRoot([{
+      ttl: 60000, // 60 seconds
+      limit: 10,  // Default limit of 10 requests per minute across the app
+    }]),
     PrismaModule, 
     AuthModule, 
     BranchModule,

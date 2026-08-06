@@ -1,5 +1,5 @@
 // api/src/procurement/procurement.controller.ts
-import { Controller, Get, Post, Body, Patch, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, UseGuards, Request } from '@nestjs/common';
 import { ProcurementService } from './procurement.service';
 import { CreateSupplierDto, CreatePurchaseOrderDto, UpdateOrderStatusDto } from './dto/procurement.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -30,7 +30,12 @@ export class ProcurementController {
   }
 
   @Patch('order/:id/status')
-  updatePOStatus(@Param('id') id: string, @Body() updateDto: UpdateOrderStatusDto) {
-    return this.procurementService.updatePOStatus(id, updateDto);
+  updatePOStatus(
+    @Param('id') id: string, 
+    @Body() updateDto: UpdateOrderStatusDto,
+    @Request() req: any // Added Request decorator to extract JWT data
+  ) {
+    // Pass the user ID from the request object to the service
+    return this.procurementService.updatePOStatus(id, updateDto, req.user.userId);
   }
 }

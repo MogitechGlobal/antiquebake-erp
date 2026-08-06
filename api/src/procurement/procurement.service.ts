@@ -62,10 +62,15 @@ export class ProcurementService {
     });
   }
 
-  async updatePOStatus(id: string, updateDto: UpdateOrderStatusDto) {
+  // --- REFACTORED STATUS UPDATE (WITH ACCOUNTS PAYABLE & COSTING) ---
+  
+  async updatePOStatus(id: string, updateDto: UpdateOrderStatusDto, userId: string) {
     const po = await this.prisma.purchaseOrder.findUnique({
       where: { id },
-      include: { items: true },
+      include: { 
+        supplier: true, 
+        items: { include: { item: true } } 
+      },
     });
 
     if (!po) throw new NotFoundException('Purchase Order not found');
@@ -78,21 +83,56 @@ export class ProcurementService {
       });
     }
 
-    // --- GRN (Goods Receipt Note) TRANSACTION ---
+    // --- GRN, COSTING & ACCOUNTS PAYABLE TRANSACTION ---
     return this.prisma.$transaction(async (prisma) => {
       const updatedPO = await prisma.purchaseOrder.update({
         where: { id },
         data: { status: 'RECEIVED' },
       });
 
-      // Increment inventory for each received item
       for (const poItem of po.items) {
+        // 1. Increment Inventory
         await prisma.inventory.upsert({
           where: { itemId_branchId: { itemId: poItem.itemId, branchId: po.branchId } },
           update: { quantity: { increment: poItem.quantity } },
           create: { itemId: poItem.itemId, branchId: po.branchId, quantity: poItem.quantity },
         });
+
+        // 2. Calculate Moving Average Cost
+        const globalStock = await prisma.inventory.aggregate({
+          where: { itemId: poItem.itemId },
+          _sum: { quantity: true }
+        });
+        
+        const currentTotalQty = globalStock._sum.quantity || 0;
+        const currentCost = poItem.item.cost || 0;
+
+        const oldTotalValue = currentTotalQty * currentCost;
+        const newTotalValue = poItem.quantity * poItem.unitPrice;
+        const newAverageCost = (oldTotalValue + newTotalValue) / (currentTotalQty + poItem.quantity);
+
+        // 3. Update Item Cost
+        await prisma.item.update({
+          where: { id: poItem.itemId },
+          data: { cost: newAverageCost }
+        });
       }
+
+      // 4. Create Liability Record
+      await prisma.ledgerEntry.create({
+        data: {
+          date: new Date(),
+          type: 'Expense',
+          revenuePoint: 'Procurement',
+          paymentSource: 'Accounts Payable',
+          category: 'Supplier Credit',
+          description: `Goods Received - PO ${po.poNumber} from ${po.supplier.name}`,
+          amount: po.totalAmount,
+          reference: po.poNumber,
+          branchId: po.branchId,
+          createdById: userId 
+        }
+      });
 
       return updatedPO;
     });

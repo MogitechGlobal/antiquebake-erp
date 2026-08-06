@@ -1,3 +1,4 @@
+// api/src/inventory/dto/inventory.dto.ts
 import { IsString, IsNotEmpty, IsNumber, IsOptional, Min } from 'class-validator';
 
 export class CreateItemDto {
@@ -17,11 +18,24 @@ export class UpdateItemDto {
   @IsString() @IsOptional() unit?: string;
   @IsNumber() @IsOptional() @Min(0) cost?: number;
   @IsNumber() @IsOptional() @Min(0) price?: number;
-  @IsString() @IsOptional() organizationId?: string; // Fixes the 400 Bad Request error
+  @IsString() @IsOptional() organizationId?: string; 
 }
 
 export class AdjustStockDto {
   @IsString() @IsNotEmpty() itemId!: string;
-  @IsString() @IsNotEmpty() branchId!: string;
+  
+  // Notice we accept 'storeId' to match the frontend, but map it to 'branchId' for the backend
+  @IsString() @IsNotEmpty() storeId!: string; 
+  
   @IsNumber() @Min(0) quantity!: number;
+
+  @IsOptional() @IsString() targetStoreId?: string;
+  @IsOptional() @IsString() type?: string;
+  @IsOptional() @IsString() notes?: string;
+  @IsOptional() userId?: string | number;
+
+  // Getter to seamlessly map storeId to branchId for Prisma
+  get branchId(): string {
+    return this.storeId;
+  }
 }

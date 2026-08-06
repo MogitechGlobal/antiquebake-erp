@@ -801,10 +801,10 @@ export default function ProcurementDashboardPage() {
                         )}
                       </div>
                       
-                      <input type="number" min="0.01" step="0.01" required placeholder="Qty" value={item.quantity} onChange={e => {
+                      <input type="number" min="0.01" step="any" required placeholder="Qty" value={item.quantity} onChange={e => {
                           const newItems = [...lpoItems]; newItems[index].quantity = e.target.value; setLpoItems(newItems);
                       }} className="w-24 px-3 py-2.5 bg-white border border-zinc-300 rounded-lg text-sm font-medium" />
-                      <input type="number" min="0" required placeholder="Price" value={item.unitPrice} onChange={e => {
+                      <input type="number" min="0" step="any" required placeholder="Price" value={item.unitPrice} onChange={e => {
                           const newItems = [...lpoItems]; newItems[index].unitPrice = e.target.value; setLpoItems(newItems);
                       }} className="w-28 px-3 py-2.5 bg-white border border-zinc-300 rounded-lg text-sm font-medium" />
                       

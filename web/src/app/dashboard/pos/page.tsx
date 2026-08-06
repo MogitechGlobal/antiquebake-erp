@@ -578,8 +578,8 @@ export default function POSDashboardPage() {
             <div className="text-center mb-4">
               <h2 className="text-xl font-bold uppercase">AntiqueBake</h2>
               <p className="text-xs">Branch: {user?.branchName}</p>
-              <p className="text-xs">P.O. Box 1234, Local City</p>
-              <p className="text-xs">Tel: +255 700 000 000</p>
+              <p className="text-xs">P.O. Box 6681, Morogoro, Tanzania </p>
+              <p className="text-xs">Tel: +255 767 885 555</p>
             </div>
 
             <div className="border-y border-dashed border-black py-2 mb-4 text-xs">

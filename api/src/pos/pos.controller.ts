@@ -1,8 +1,7 @@
 // api/src/pos/pos.controller.ts
 import { Controller, Get, Post, Patch, Body, Param, UseGuards } from '@nestjs/common';
 import { PosService } from './pos.service';
-import { UpdateTransactionStatusDto } from './dto/pos.dto';
-import { CreateTransactionDto } from './dto/pos.dto';
+import { UpdateTransactionStatusDto, CreateTransactionDto } from './dto/pos.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @UseGuards(JwtAuthGuard)

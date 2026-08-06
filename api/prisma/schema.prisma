@@ -52,6 +52,8 @@ model Branch {
   ledgerEntries LedgerEntry[]
   invoices Invoice[]
   payments Payment[]
+  adjustmentsOut InventoryAdjustment[] @relation("SourceStore")
+  adjustmentsIn  InventoryAdjustment[] @relation("TargetStore")
 }
 
 model Role {
@@ -145,6 +147,7 @@ model Item {
   ingredientIn     RecipeIngredient[] @relation("IngredientItem")
   salesItems SalesItem[]
   purchaseOrderItems PurchaseOrderItem[]
+  adjustments InventoryAdjustment[]
 }
 
 model Inventory {
@@ -327,4 +330,21 @@ model Payment {
   branchId    String
   branch      Branch   @relation(fields: [branchId], references: [id])
   createdAt   DateTime @default(now())
+}
+
+model InventoryAdjustment {
+  id                 String   @id @default(uuid())
+  date               DateTime @default(now())
+  itemId             String   
+  storeId            String   
+  transferToStoreId  String?  
+  userId             String?  
+  type               String   // 'Transfer', 'Restock', 'Correction', 'Damage', 'Spoilage', 'Internal Use'
+  quantity           Float
+  notes              String?
+  
+  // Linked to your REAL ERP tables
+  item               Item     @relation(fields: [itemId], references: [id])
+  sourceStore        Branch   @relation("SourceStore", fields: [storeId], references: [id])
+  targetStore        Branch?  @relation("TargetStore", fields: [transferToStoreId], references: [id])
 }

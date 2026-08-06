@@ -189,15 +189,21 @@ export default function InventoryDashboardPage() {
     setSuccess(null);
 
     try {
-      await axios.patch(`${API_URL}/api/v1/inventory/stock`, { 
-        itemId: selectedItem.id, branchId: user.branchId, quantity: Number(adjustQuantity) 
+      // Changed method to POST and endpoint to /adjustments to match the new unified backend route
+      await axios.post(`${API_URL}/api/v1/inventory/adjustments`, { 
+        itemId: selectedItem.id, 
+        storeId: user.branchId, // The backend expects 'storeId' to seamlessly map to 'branchId'
+        quantity: Number(adjustQuantity),
+        type: "Correction", // Explicitly define this as a correction
+        notes: "Manual adjustment from Inventory Dashboard",
+        userId: user.id
       }, axiosConfig);
       
       setSuccess(`Stock updated successfully.`);
       fetchInventoryData();
       setTimeout(() => { closeModals(); }, 1000);
     } catch (err: any) {
-      setError(err.response?.data?.message || "Failed to update stock levels.");
+      setError(err.response?.data?.message || err.response?.data?.error || "Failed to update stock levels.");
     } finally {
       setIsAdjusting(false);
     }
@@ -440,7 +446,7 @@ export default function InventoryDashboardPage() {
                           <button onClick={() => openUsageModal(item)} title="View Usage" className="p-2 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-200">
                             <Eye className="w-4 h-4" />
                           </button>
-                          <button onClick={() => openAdjustModal(item)} title="Adjust Stock" className="p-2 text-bakery-brown bg-bakery-cream hover:bg-bakery-gold/20 rounded-lg transition-colors border border-bakery-gold/30">
+                          <button onClick={() => openAdjustModal(item)} title="Add Stock" className="p-2 text-bakery-brown bg-bakery-cream hover:bg-bakery-gold/20 rounded-lg transition-colors border border-bakery-gold/30">
                             <ArrowUpDown className="w-4 h-4" />
                           </button>
                           <button onClick={() => openEditModal(item)} title="Edit Details" className="p-2 text-amber-600 bg-amber-50 hover:bg-amber-100 rounded-lg transition-colors border border-amber-200">
@@ -470,7 +476,7 @@ export default function InventoryDashboardPage() {
                 <div className="p-2 bg-bakery-gold/20 text-bakery-brown rounded-xl shadow-sm">
                   <Calculator className="w-5 h-5" />
                 </div>
-                <h3 className="text-lg font-bold text-zinc-900">Adjust Stock</h3>
+                <h3 className="text-lg font-bold text-zinc-900">Add Stock</h3>
               </div>
               <button onClick={closeModals} className="text-zinc-400 hover:text-zinc-900 hover:bg-zinc-200 p-1.5 rounded-full transition-colors">
                 <X className="w-5 h-5" />
@@ -514,7 +520,7 @@ export default function InventoryDashboardPage() {
                 Cancel
               </button>
               <button type="submit" form="adjust-form" disabled={isAdjusting} className="flex-1 py-2.5 text-sm font-bold bg-zinc-900 hover:bg-black text-white rounded-xl shadow-md transition-all flex items-center justify-center disabled:opacity-70">
-                {isAdjusting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Adjustment"}
+                {isAdjusting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Changes"}
               </button>
             </div>
           </div>

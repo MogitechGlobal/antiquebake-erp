@@ -1,67 +1,137 @@
 // api/src/pos/pos.service.ts
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, InternalServerErrorException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTransactionDto } from './dto/pos.dto';
 
 @Injectable()
 export class PosService {
+  // Initialize the logger to capture backend crashes
+  private readonly logger = new Logger(PosService.name);
+
   constructor(private prisma: PrismaService) {}
 
   async processCheckout(createDto: CreateTransactionDto) {
     const { branchId, staffId, paymentMethod, items } = createDto;
     
-    // Generate a secure receipt string
-    const receiptNumber = `RCPT-${Math.floor(1000000 + Math.random() * 9000000)}`;
-
-    // Calculate totals securely on the backend to prevent client-side spoofing
-    let totalAmount = 0;
-    const processedItems = items.map(item => {
-      const subtotal = item.quantity * item.unitPrice;
-      totalAmount += subtotal;
-      return {
-        itemId: item.itemId,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        subtotal
-      };
-    });
-
-    if (totalAmount <= 0) {
-      throw new BadRequestException('Transaction total must be greater than zero.');
-    }
-
-    // Execute the financial and inventory shifts atomically
-    return this.prisma.$transaction(async (prisma) => {
-      // 1. Log the financial transaction
-      const transaction = await prisma.salesTransaction.create({
-        data: {
-          receiptNumber,
-          branchId,
-          staffId,
-          totalAmount,
-          paymentMethod,
-          items: {
-            create: processedItems
-          }
-        },
-        include: { items: true }
+    try {
+      // 1. Fetch Authoritative Pricing from the Database
+      const itemIds = items.map(i => i.itemId);
+      const catalogItems = await this.prisma.item.findMany({
+        where: { id: { in: itemIds } }
       });
 
-      // 2. Deduct the sold items from the branch's inventory
-      for (const item of processedItems) {
-        // We use update rather than upsert because an item must exist in inventory to be sold
-        await prisma.inventory.update({
-          where: { 
-            itemId_branchId: { itemId: item.itemId, branchId } 
-          },
-          data: { 
-            quantity: { decrement: item.quantity } 
-          }
-        });
+      if (catalogItems.length !== itemIds.length) {
+        throw new BadRequestException('One or more items in the cart are invalid or unrecognized.');
       }
 
-      return transaction;
-    });
+      // 2. Fetch Current Inventory Levels
+      const inventories = await this.prisma.inventory.findMany({
+        where: {
+          branchId: branchId,
+          itemId: { in: itemIds }
+        }
+      });
+
+      const receiptNumber = `RCPT-${Math.floor(1000000 + Math.random() * 9000000)}`;
+      let totalAmount = 0;
+
+      // 3. Validate Stock (Zero-Inventory Policy) and Calculate Totals Securely
+      const processedItems = items.map(cartItem => {
+        const catalogItem = catalogItems.find(i => i.id === cartItem.itemId);
+        const stock = inventories.find(i => i.itemId === cartItem.itemId);
+
+        if (!catalogItem) {
+          throw new BadRequestException(`Catalog item missing for ID: ${cartItem.itemId}`);
+        }
+
+        // Force numeric conversion to prevent Prisma decrement string errors
+        const requestedQty = Number(cartItem.quantity);
+
+        // Enforce zero-inventory policy
+        if (!stock || stock.quantity < requestedQty) {
+          throw new BadRequestException(
+            `Transaction rejected: Insufficient stock for ${catalogItem.name}. Available: ${stock?.quantity || 0}`
+          );
+        }
+
+        // Override client price with authoritative backend price (forced to Number)
+        const unitPrice = Number(catalogItem.price);
+        const subtotal = requestedQty * unitPrice;
+        totalAmount += subtotal;
+
+        return {
+          itemId: cartItem.itemId,
+          quantity: requestedQty,
+          unitPrice: unitPrice, 
+          subtotal: subtotal
+        };
+      });
+
+      if (totalAmount <= 0) {
+        throw new BadRequestException('Transaction total must be greater than zero.');
+      }
+
+      // 4. Execute the financial and inventory shifts atomically
+      // Await is crucial here inside the try block to catch Prisma transaction failures
+      return await this.prisma.$transaction(async (prisma) => {
+        // A. Log the financial POS transaction
+        const transaction = await prisma.salesTransaction.create({
+          data: {
+            receiptNumber,
+            branchId,
+            staffId,
+            totalAmount,
+            paymentMethod,
+            items: {
+              create: processedItems
+            }
+          },
+          include: { items: true }
+        });
+
+        // B. Deduct the sold items from the branch's inventory
+        for (const item of processedItems) {
+          await prisma.inventory.update({
+            where: { 
+              itemId_branchId: { itemId: item.itemId, branchId } 
+            },
+            data: { 
+              quantity: { decrement: item.quantity } 
+            }
+          });
+        }
+
+        // C. Automatically Post to General Ledger
+        await prisma.ledgerEntry.create({
+          data: {
+            date: new Date(),
+            type: 'Income',
+            revenuePoint: 'POS',
+            paymentSource: paymentMethod,
+            category: 'Sales Revenue',
+            description: `POS Sale - Receipt ${receiptNumber}`,
+            amount: totalAmount,
+            reference: receiptNumber,
+            branchId,
+            createdById: staffId
+          }
+        });
+
+        return transaction;
+      });
+
+    } catch (error: any) {
+      // 5. Catch and Log Database Exceptions
+      this.logger.error(`Checkout Failed: ${error.message}`, error.stack);
+      
+      // Pass safe validation errors back to the frontend
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      
+      // Mask database structure errors from the frontend to prevent data leakage
+      throw new InternalServerErrorException('Transaction failed to process. Check server logs.');
+    }
   }
 
   async getBranchTransactions(branchId: string) {
@@ -76,14 +146,7 @@ export class PosService {
   }
 
   async getTransactions(branchId: string) {
-    return this.prisma.salesTransaction.findMany({
-      where: { branchId },
-      include: {
-        staff: { include: { staff: true } },
-        items: { include: { item: true } }
-      },
-      orderBy: { createdAt: 'desc' }
-    });
+    return this.getBranchTransactions(branchId);
   }
 
   async updateTransactionStatus(id: string, status: string) {
@@ -96,34 +159,38 @@ export class PosService {
 
     // If voiding, revert inventory stock
     if (status === 'CANCELLED' && transaction.status !== 'CANCELLED') {
-      await this.prisma.$transaction(async (prisma) => {
-        // Revert stock for each item sold
-        for (const item of transaction.items) {
-          // Check if inventory record exists before attempting to update
-          const inventoryRecord = await prisma.inventory.findUnique({
-            where: {
-              itemId_branchId: {
-                itemId: item.itemId,
-                branchId: transaction.branchId
+      try {
+        await this.prisma.$transaction(async (prisma) => {
+          // Revert stock for each item sold
+          for (const item of transaction.items) {
+            const inventoryRecord = await prisma.inventory.findUnique({
+              where: {
+                itemId_branchId: {
+                  itemId: item.itemId,
+                  branchId: transaction.branchId
+                }
               }
-            }
-          });
+            });
 
-          if (inventoryRecord) {
-             await prisma.inventory.update({
-               where: { itemId_branchId: { itemId: item.itemId, branchId: transaction.branchId } },
-               data: { quantity: { increment: item.quantity } }
-             });
+            if (inventoryRecord) {
+               await prisma.inventory.update({
+                 where: { itemId_branchId: { itemId: item.itemId, branchId: transaction.branchId } },
+                 data: { quantity: { increment: Number(item.quantity) } }
+               });
+            }
           }
-        }
-        
-        // Update transaction status
-        await prisma.salesTransaction.update({
-          where: { id },
-          data: { status }
+          
+          // Update transaction status
+          await prisma.salesTransaction.update({
+            where: { id },
+            data: { status }
+          });
         });
-      });
-      return { message: 'Transaction voided and inventory reverted successfully.' };
+        return { message: 'Transaction voided and inventory reverted successfully.' };
+      } catch (error: any) {
+         this.logger.error(`Void Transaction Failed: ${error.message}`, error.stack);
+         throw new InternalServerErrorException('Failed to void transaction and revert inventory.');
+      }
     }
 
     // Standard update for any other status changes

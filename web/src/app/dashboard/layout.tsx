@@ -21,7 +21,8 @@ import {
   Truck,
   FileText,
   UserCircle,
-  Lock
+  Lock,
+  ArrowLeftRight
 } from "lucide-react";
 
 // --- 1. DEFINE ROLE-BASED ACCESS GROUPS ---
@@ -30,11 +31,11 @@ const MANAGERS = [...ADMINS, "Branch Manager", "Accountant"];
 const POS_STAFF = [...MANAGERS, "Cashier", "Sales Personel"];
 const INVENTORY_STAFF = [...MANAGERS, "Inventory Manager", "Inventory Clerk"];
 const KITCHEN_STAFF = [
-  ...MANAGERS, 
-  "Baker", 
-  "Baker - Oven Handler", 
-  "Baker/Mixer Machine Handler", 
-  "Cook - Frier Machiner Handler", 
+  ...MANAGERS,
+  "Baker",
+  "Baker - Oven Handler",
+  "Baker/Mixer Machine Handler",
+  "Cook - Frier Machiner Handler",
   "Team Builder - Position Replacer"
 ];
 
@@ -60,7 +61,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [isMounted, setIsMounted] = useState(false);
   const [openDropdowns, setOpenDropdowns] = useState<Record<string, boolean>>({});
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  
+
   const profileRef = useRef<HTMLDivElement>(null);
 
   // Enterprise Menu Configuration with RBAC Permissions assigned to specific roles
@@ -75,6 +76,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
     { header: "SUPPLY CHAIN", allowedRoles: [...INVENTORY_STAFF, ...KITCHEN_STAFF] },
     { name: "Inventory Control", href: "/dashboard/inventory", icon: PackageSearch, allowedRoles: INVENTORY_STAFF },
+    { name: "Stock Adjustments", href: "/dashboard/inventory/adjustments", icon: ArrowLeftRight, allowedRoles: INVENTORY_STAFF },
     { name: "Production & Recipes", href: "/dashboard/production", icon: Factory, allowedRoles: ["Inventory Manager", ...KITCHEN_STAFF] },
     { name: "Procurement (LPO)", href: "/dashboard/procurement", icon: Truck, allowedRoles: INVENTORY_STAFF },
 
@@ -205,13 +207,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           }`}
       >
         <div className="h-16 flex items-center justify-between px-6 border-b border-zinc-800 bg-zinc-950 flex-shrink-0">
-          
+
           <Link href="/dashboard/profile" className="flex items-center space-x-3">
             <div className="relative w-8 h-8 flex-shrink-0 bg-bakery-gold/20 rounded p-1">
-              <Image 
-                src="/web-app-manifest-512x512.png" 
-                alt="Antique Oven Logo" 
-                fill 
+              <Image
+                src="/web-app-manifest-512x512.png"
+                alt="Antique Oven Logo"
+                fill
                 className="object-contain"
               />
             </div>
@@ -299,7 +301,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
-        
+
         <header className="h-16 bg-white border-b border-zinc-200 flex items-center justify-between px-6 shadow-sm sticky top-0 z-30 flex-shrink-0">
           <div className="flex items-center">
             <button
@@ -314,7 +316,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
 
           <div className="relative" ref={profileRef}>
-            <button 
+            <button
               onClick={() => setIsProfileOpen(!isProfileOpen)}
               className="flex items-center space-x-3 hover:bg-stone-50 p-1.5 rounded-xl transition-colors cursor-pointer"
             >
@@ -330,23 +332,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
             {isProfileOpen && (
               <div className="absolute right-0 mt-2 w-56 bg-white border border-stone-200 rounded-xl shadow-xl py-2 z-50 animate-in fade-in slide-in-from-top-2">
-                
+
                 <div className="px-4 py-3 border-b border-stone-100 sm:hidden">
                   <p className="text-sm font-bold text-zinc-900 truncate">{user.firstName} {user.lastName}</p>
                   <p className="text-xs font-medium text-bakery-brown truncate">{user.role}</p>
                 </div>
 
                 <div className="px-2 space-y-1 mt-2">
-                  <Link 
-                    href="/dashboard/profile" 
+                  <Link
+                    href="/dashboard/profile"
                     onClick={() => setIsProfileOpen(false)}
                     className="flex items-center w-full px-3 py-2 text-sm text-stone-700 hover:bg-stone-50 hover:text-bakery-brown rounded-lg transition-colors"
                   >
                     <UserCircle className="w-4 h-4 mr-3 text-stone-400" />
                     Account Settings
                   </Link>
-                  <Link 
-                    href="/dashboard/profile/security" 
+                  <Link
+                    href="/dashboard/profile/security"
                     onClick={() => setIsProfileOpen(false)}
                     className="flex items-center w-full px-3 py-2 text-sm text-stone-700 hover:bg-stone-50 hover:text-bakery-brown rounded-lg transition-colors"
                   >
@@ -354,10 +356,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     Change Password
                   </Link>
                 </div>
-                
+
                 <div className="px-2 mt-2 pt-2 border-t border-stone-100">
-                  <button 
-                    onClick={handleLogout} 
+                  <button
+                    onClick={handleLogout}
                     className="flex items-center w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer font-medium"
                   >
                     <LogOut className="w-4 h-4 mr-3" />
